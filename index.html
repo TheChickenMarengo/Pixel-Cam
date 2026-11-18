@@ -52,6 +52,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="dos" aria-pressed="false">DOS</button>
     <button data-pal="mono" aria-pressed="false">1-bit</button>
     <button data-pal="mono2" aria-pressed="false">1-bit Diffuse</button>
+    <button data-pal="atkinson" aria-pressed="false">1-bit Atkinson</button>
+    <button data-pal="nes" aria-pressed="false">NES</button>
+    <button data-pal="c64" aria-pressed="false">C64</button>
+    <button data-pal="zx" aria-pressed="false">ZX Spectrum</button>
   </div>
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
@@ -77,7 +81,10 @@ const PALETTES = {
   gameboy: {mode:'ramp', colours:['#0f380f','#306230','#8bac0f','#9bbc0f']},
   gbc: {mode:'nearest', colours:['#0f380f','#1e3a1e','#2f5a3a','#4a7a2a','#306230','#6fa040','#8bac0f','#b5d070','#9bbc0f','#d8f0a0','#3b2a1a','#5a3a2a','#6b4a2a','#8a5a3a','#9a6a3a','#c08a50','#b89070','#7a2a2a','#a04040','#c86a6a','#f0a0a0','#1a2a3a','#3a5a7a','#7aa0b8','#b8d0d8','#2a2a2a','#5a5a5a','#9a9a9a','#f0f0e0','#f0e0a0','#e8c8a8','#e8d880']},
   dos: {mode:'nearest', colours:['#000000','#0000aa','#00aa00','#00aaaa','#aa0000','#aa00aa','#aa5500','#aaaaaa','#555555','#5555ff','#55ff55','#55ffff','#ff5555','#ff55ff','#ffff55','#ffffff']},
-  mono: {mode:'ramp', colours:['#000000','#ffffff']}
+  mono: {mode:'ramp', colours:['#000000','#ffffff']},
+  nes: {mode:'nearest', colours:['#7c7c7c','#0000fc','#0000bc','#4428bc','#940084','#a80020','#a81000','#881400','#503000','#007800','#006800','#005800','#004058','#bcbcbc','#0078f8','#0058f8','#6844fc','#d800cc','#e40058','#f83800','#e45c10','#ac7c00','#00b800','#00a800','#00a844','#008888','#f8f8f8','#3cbcfc','#6888fc','#9878f8','#f878f8','#f85898','#f87858','#fca044','#f8b800','#b8f818','#58d854','#58f898','#00e8d8','#787878','#fcfcfc','#a4e4fc','#b8b8f8','#d8b8f8','#f8b8f8','#f8a4c0','#f0d0b0','#fce0a8','#f8d878','#d8f878','#b8f8b8','#b8f8d8','#00fcfc','#f8d8f8','#000000']},
+  c64: {mode:'nearest', colours:['#000000','#ffffff','#68372b','#70a4b2','#6f3d86','#588d43','#352879','#b8c76f','#6f4f25','#433900','#9a6759','#444444','#6c6c6c','#9ad284','#6c5eb5','#959595']},
+  zx: {mode:'zx', colours:['#000000','#0000cd','#cd0000','#cd00cd','#00cd00','#00cdcd','#cdcd00','#cdcdcd','#0000ff','#ff0000','#ff00ff','#00ff00','#00ffff','#ffff00','#ffffff']}
 };
 const BAYER = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 const B8 = [0,48,12,60,3,51,15,63,32,16,44,28,35,19,47,31,8,56,4,52,11,59,7,55,40,24,36,20,43,27,39,23,2,50,14,62,1,49,13,61,34,18,46,30,33,17,45,29,10,58,6,54,9,57,5,53,42,26,38,22,41,25,37,21];
@@ -220,6 +227,60 @@ for (const k in PALETTES) if (PALETTES[k]) PALETTES[k].rgb = PALETTES[k].colours
   const n = parseInt(h.slice(1), 16); return [n>>16&255, n>>8&255, n&255];
 });
 
+// 1-bit Atkinson: the classic Macintosh dither. Only 6/8 of the error spreads, so the result is higher contrast with more white
+function atkinson(d, w, h) {
+  const buf = new Float32Array(w * h);
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    const v = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+    buf[p] = Math.min(255, Math.max(0, (v - 128) * 1.2 + 128));
+  }
+  const add = (x, y, v) => { if (x >= 0 && x < w && y < h) buf[y * w + x] += v; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = y * w + x, i = p * 4;
+    const old = buf[p];
+    const nv = old < 128 ? 0 : 255;
+    d[i] = d[i+1] = d[i+2] = nv;
+    if (!dither) continue;
+    const e = (old - nv) / 8;
+    add(x + 1, y, e); add(x + 2, y, e);
+    add(x - 1, y + 1, e); add(x, y + 1, e); add(x + 1, y + 1, e);
+    add(x, y + 2, e);
+  }
+}
+
+// ZX Spectrum: each 8x8 cell may use only two colours (ink and paper), and bright and normal colours cannot mix unless one is black
+function zxCompatible(a, b) { return a === 0 || b === 0 || (a >= 8) === (b >= 8); }
+function zxFx(d, w, h) {
+  const list = PALETTES.zx.rgb;
+  for (let cy = 0; cy < h; cy += 8) for (let cx = 0; cx < w; cx += 8) {
+    const ye = Math.min(cy + 8, h), xe = Math.min(cx + 8, w);
+    const counts = new Array(list.length).fill(0);
+    for (let y = cy; y < ye; y++) for (let x = cx; x < xe; x++) {
+      const i = (y * w + x) * 4;
+      counts[nearest(d[i], d[i+1], d[i+2], list)]++;
+    }
+    let a = 0;
+    for (let k = 1; k < list.length; k++) if (counts[k] > counts[a]) a = k;
+    let b = -1;
+    for (let k = 0; k < list.length; k++) {
+      if (k === a || !zxCompatible(a, k)) continue;
+      if (b < 0 || counts[k] > counts[b]) b = k;
+    }
+    if (b < 0) b = a;
+    const A = list[a], B = list[b];
+    for (let y = cy; y < ye; y++) for (let x = cx; x < xe; x++) {
+      const i = (y * w + x) * 4;
+      const o = dither ? (BAYER[((y&3)<<2) | (x&3)] / 16 - 0.5) * 60 : 0;
+      const r = d[i] + o, g = d[i+1] + o, bl = d[i+2] + o;
+      const dA = (r-A[0])**2 + (g-A[1])**2 + (bl-A[2])**2;
+      const dB = (r-B[0])**2 + (g-B[1])**2 + (bl-B[2])**2;
+      const c = dA <= dB ? A : B;
+      d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
+    }
+  }
+}
+
 function fit() {
   if (!view.width) return;
   const sw = stage.clientWidth - 24, sh = stage.clientHeight - 24;
@@ -266,6 +327,8 @@ function frame() {
     adjust(img.data);
     if (pal === 'dos') diffuse(img.data, w, h);
     else if (pal === 'mono2') mono1(img.data, w, h);
+    else if (pal === 'atkinson') atkinson(img.data, w, h);
+    else if (pal === 'zx') zxFx(img.data, w, h);
     else if (pal !== 'original') quantise(img.data, w, h);
     vctx.putImageData(img, 0, 0);
     view.style.display = 'block';
