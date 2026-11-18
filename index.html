@@ -57,6 +57,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <div id="panel">
   <div class="dim" id="inst">Checking install…</div>
   <div class="row"><button id="installBtn" hidden>Install app</button></div>
+  <div class="row" id="reviewBar" hidden>
+    <button id="reviewSave">Save video</button>
+    <button id="reviewDiscard">Discard</button>
+  </div>
   <div class="row" id="pals">
     <button data-pal="original" aria-pressed="false">Original</button>
     <button data-pal="gameboy" aria-pressed="true">Game Boy</button>
@@ -88,9 +92,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button id="flip">Flip</button>
     <button id="shoot" aria-label="Take photo" title="Take photo"></button>
     <button id="rec" title="Record video">Record</button>
-    <button id="save" title="Save the current frame">Save PNG</button>
-    <button id="saveVid" disabled title="Save the last recording">Save video</button>
-  </div>
+    <button id="save" title="Save the current frame">Save PNG</button>  </div>
 </div>
 <video id="cam" playsinline muted autoplay style="display:none"></video>
 <script>
@@ -344,6 +346,7 @@ function fit() {
 // Shutter freezes the current frame so it can be edited; press again to return to live
 let frozen = false, frozenFrame = null;
 function toggleFreeze() {
+  if (reviewVid) return;
   if (frozen) {
     frozen = false;
     shootBtn.classList.remove('frozen');
@@ -363,10 +366,10 @@ function toggleFreeze() {
 // Draws one processed frame of the live camera (or the frozen photo) into the view
 function frame() {
   const live = cam.readyState >= 2 && cam.videoWidth;
-  if (frozen || live) {
-    const src = frozen ? frozenFrame : cam;
-    const sw = frozen ? frozenFrame.width : cam.videoWidth;
-    const sh = frozen ? frozenFrame.height : cam.videoHeight;
+  const src = reviewVid || (frozen ? frozenFrame : live ? cam : null);
+  if (src) {
+    const sw = src.videoWidth || src.width;
+    const sh = src.videoHeight || src.height;
     const w = +res.value;
     const h = Math.max(1, Math.round(w * sh / sw));
     if (view.width !== w || view.height !== h) { view.width = w; view.height = h; fit(); }
@@ -532,11 +535,34 @@ function download(blob, name) {
 
 // Saves the file as a download (Downloads folder on Android)
 let lastVideo = null;
-const saveVidBtn = document.getElementById('saveVid');
+let reviewVid = null, reviewUrl = null;
+const reviewBar = document.getElementById('reviewBar');
 function saveFile(blob, name) {
   download(blob, name);
 }
-saveVidBtn.addEventListener('click', () => { if (lastVideo) saveFile(lastVideo.blob, lastVideo.name); });
+// After a recording stops, the clip plays in the feed until it is saved or discarded
+function enterReview(blob, name) {
+  exitReview();
+  reviewUrl = URL.createObjectURL(blob);
+  reviewVid = document.createElement('video');
+  reviewVid.muted = true; reviewVid.loop = true; reviewVid.playsInline = true;
+  reviewVid.src = reviewUrl;
+  lastVideo = { blob, name };
+  reviewBar.hidden = false;
+  reviewVid.play().catch(() => {});
+}
+function exitReview() {
+  if (reviewVid) { reviewVid.pause(); reviewVid = null; }
+  if (reviewUrl) { URL.revokeObjectURL(reviewUrl); reviewUrl = null; }
+  lastVideo = null;
+  reviewBar.hidden = true;
+}
+document.getElementById('reviewSave').addEventListener('click', () => {
+  if (!lastVideo) return;
+  saveFile(lastVideo.blob, lastVideo.name);
+  exitReview();
+});
+document.getElementById('reviewDiscard').addEventListener('click', exitReview);
 
 function flashNow() {
   flash.classList.add('on');
@@ -561,6 +587,7 @@ function noVideo() {
 // Records the processed picture as the camera sees it; press again to stop and save
 recBtn.addEventListener('click', () => {
   if (recorder) { recorder.stop(); return; }
+  if (reviewVid) return;
   if (typeof MediaRecorder === 'undefined' || !view.captureStream) { noVideo(); return; }
   const opts = ['video/mp4', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
   if (!opts) { noVideo(); return; }
@@ -574,8 +601,7 @@ recBtn.addEventListener('click', () => {
     recorder = null;
     recBtn.textContent = 'Record';
     recBtn.classList.remove('rec-on');
-    lastVideo = { blob, name: `pixel-video-${Date.now()}.${ext}` };
-    saveVidBtn.disabled = false;
+    enterReview(blob, `pixel-video-${Date.now()}.${ext}`);
   };
   recorder.start();
   recBtn.textContent = 'Stop';
