@@ -465,15 +465,10 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-// Saves through the share sheet (Save to Photos / Gallery) when the phone supports it, otherwise downloads the file
+// Saves the file as a download (Downloads folder on Android)
 let lastVideo = null;
 const saveVidBtn = document.getElementById('saveVid');
-async function saveFile(blob, name) {
-  const file = new File([blob], name, { type: blob.type });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: name }); return; }
-    catch (e) { if (e.name === 'AbortError') return; }
-  }
+function saveFile(blob, name) {
   download(blob, name);
 }
 saveVidBtn.addEventListener('click', () => { if (lastVideo) saveFile(lastVideo.blob, lastVideo.name); });
