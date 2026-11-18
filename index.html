@@ -41,6 +41,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* Portrait: styles scroll sideways in one row */
 #pals{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
 #pals button{flex:0 0 auto;white-space:nowrap}
+/* Landscape: controls move to a side panel so the picture gets the full height */
+@media (orientation: landscape) and (max-height: 600px) {
+  body{flex-direction:row}
+  #panel{width:46%;max-height:100%;border-top:0;border-left:1px solid var(--edge)}
+}
 </style>
 </head>
 <body>
