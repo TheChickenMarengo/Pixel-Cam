@@ -17,7 +17,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 ui-monospace,Menlo,Consolas,monospace}
 body{display:flex;flex-direction:column;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
-#stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:12px}
+#stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:12px;overflow:hidden}
 #view{display:none;background:#000;image-rendering:pixelated;image-rendering:crisp-edges}
 #msg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--dim)}
 #panel{background:var(--panel);border-top:1px solid var(--edge);padding:10px 12px;display:flex;flex-direction:column;gap:8px;max-height:52%;overflow:auto}
@@ -34,6 +34,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .dim{color:var(--dim);font-size:12px}
 #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .2s}
 #flash.on{opacity:.8;transition:none}
+#view{touch-action:none;transform-origin:center center}
+#adjBtn[aria-pressed="true"]{background:var(--accent);color:#0f380f;border-color:var(--accent)}
+[hidden]{display:none!important}
+/* Landscape: controls move to a side panel so the picture gets the full height */
+@media (orientation: landscape) and (max-height: 600px) {
+  body{flex-direction:row}
+  #panel{width:46%;max-height:100%;border-top:0;border-left:1px solid var(--edge)}
+}
 </style>
 </head>
 <body>
@@ -60,6 +68,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="sms" aria-pressed="false">Master System</button>
     <button data-pal="pocket" aria-pressed="false">GB Pocket</button>
   </div>
+  <div class="row"><button id="adjBtn" aria-pressed="false">Adjust ▾</button></div>
+  <div id="adjust" hidden>
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
@@ -68,6 +78,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <input type="range" id="bri" min="-100" max="100" step="5" value="0">
   <div class="row spread"><span class="dim">Saturation</span><span class="dim" id="satLabel">1.00</span></div>
   <input type="range" id="sat" min="0" max="2" step="0.05" value="1">
+  </div>
   <div class="row spread">
     <button id="dither" aria-pressed="true">Dither on</button>
     <button id="flip">Flip</button>
@@ -443,6 +454,56 @@ flipBtn.addEventListener('click', () => {
   persist();
   startCamera();
 });
+
+// Collapsible adjustments: resolution and the colour sliders sit behind the Adjust button
+const adjBtn = document.getElementById('adjBtn');
+adjBtn.addEventListener('click', () => {
+  const open = document.getElementById('adjust').hidden;
+  document.getElementById('adjust').hidden = !open;
+  adjBtn.setAttribute('aria-pressed', String(open));
+  adjBtn.textContent = open ? 'Adjust ▴' : 'Adjust ▾';
+});
+
+// Pinch to zoom and drag to pan the picture; double-tap resets. Zoom changes only the display, not the saved picture.
+let zoom = 1, panX = 0, panY = 0, pinchStart = null, lastTap = 0;
+const pointers = new Map();
+function applyZoom() {
+  if (zoom === 1) { panX = 0; panY = 0; }
+  view.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+}
+function startPinch() {
+  const [a, b] = [...pointers.values()];
+  pinchStart = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom };
+}
+view.addEventListener('pointerdown', e => {
+  view.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) startPinch();
+  const now = Date.now();
+  if (pointers.size === 1 && now - lastTap < 300) { zoom = 1; applyZoom(); }
+  lastTap = now;
+});
+view.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  const prev = pointers.get(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2 && pinchStart) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    zoom = Math.min(4, Math.max(1, pinchStart.zoom * d / pinchStart.dist));
+  } else if (pointers.size === 1 && zoom > 1) {
+    panX += e.clientX - prev.x;
+    panY += e.clientY - prev.y;
+  }
+  applyZoom();
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  pinchStart = null;
+  if (pointers.size === 2) startPinch();
+}
+view.addEventListener('pointerup', endPointer);
+view.addEventListener('pointercancel', endPointer);
 
 window.addEventListener('resize', fit);
 
