@@ -119,6 +119,9 @@ function persist() {
   })); } catch (e) {}
 }
 
+// Reflect the remembered palette on the buttons (they are static in the HTML)
+document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.pal === pal)));
+
 let stream = null, recorder = null, chunks = [];
 
 function nearest(r, g, b, list) {
@@ -131,11 +134,23 @@ function nearest(r, g, b, list) {
   return best;
 }
 
+// Nearest palette index, cached per 4-bit colour bin so each bin is only searched once
+const LUTS = {};
+function nearestCached(name, list, r, g, b) {
+  const lut = LUTS[name] || (LUTS[name] = new Uint8Array(4096).fill(255));
+  const cr = Math.min(255, Math.max(0, r | 0)), cg = Math.min(255, Math.max(0, g | 0)), cb = Math.min(255, Math.max(0, b | 0));
+  const key = ((cr >> 4) << 8) | ((cg >> 4) << 4) | (cb >> 4);
+  let k = lut[key];
+  if (k === 255) { k = nearest((key >> 8) * 16 + 8, ((key >> 4) & 15) * 16 + 8, (key & 15) * 16 + 8, list); lut[key] = k; }
+  return k;
+}
+
 // Contrast around mid-grey, brightness offset, then saturation
 function adjust(d) {
   const c = +document.getElementById('con').value;
   const b = +document.getElementById('bri').value;
   const s = +document.getElementById('sat').value;
+  if (c === 1 && b === 0 && s === 1) return;
   for (let i = 0; i < d.length; i += 4) {
     const r = (d[i] - 128) * c + 128 + b;
     const g = (d[i+1] - 128) * c + 128 + b;
@@ -161,7 +176,7 @@ function quantise(d, w, h) {
       k = Math.min(n-1, Math.max(0, Math.round(l * (n-1) + t)));
     } else {
       const o = t * 90;
-      k = nearest(r + o, g + o, b + o, list);
+      k = nearestCached(pal, list, r + o, g + o, b + o);
     }
     const c = list[k];
     d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
@@ -178,7 +193,7 @@ function diffuse(d, w, h) {
     const r = clamp(d[i] + (dither ? err[e] : 0));
     const g = clamp(d[i+1] + (dither ? err[e+1] : 0));
     const b = clamp(d[i+2] + (dither ? err[e+2] : 0));
-    const c = list[nearest(r, g, b, list)];
+    const c = list[nearestCached('dos', list, r, g, b)];
     d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
     if (!dither) continue;
     const er = r - c[0], eg = g - c[1], eb = b - c[2];
@@ -198,14 +213,23 @@ function diffuse(d, w, h) {
   }
 }
 
-// 1-bit Diffuse: Floyd-Steinberg to pure black and white
-function mono1(d, w, h) {
-  const buf = new Float32Array(w * h);
-  for (let p = 0; p < w * h; p++) {
+// Shared luma buffer for the 1-bit styles (contrast lifted), reused between frames
+let bufCache = null;
+function lumaBuf(d, w, h) {
+  const n = w * h;
+  if (!bufCache || bufCache.length !== n) bufCache = new Float32Array(n);
+  const buf = bufCache;
+  for (let p = 0; p < n; p++) {
     const i = p * 4;
     const v = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
     buf[p] = Math.min(255, Math.max(0, (v - 128) * 1.2 + 128));
   }
+  return buf;
+}
+
+// 1-bit Diffuse: Floyd-Steinberg to pure black and white
+function mono1(d, w, h) {
+  const buf = lumaBuf(d, w, h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const p = y * w + x, i = p * 4;
     const old = buf[p];
@@ -229,12 +253,7 @@ for (const k in PALETTES) if (PALETTES[k]) PALETTES[k].rgb = PALETTES[k].colours
 
 // 1-bit Atkinson: the classic Macintosh dither. Only 6/8 of the error spreads, so the result is higher contrast with more white
 function atkinson(d, w, h) {
-  const buf = new Float32Array(w * h);
-  for (let p = 0; p < w * h; p++) {
-    const i = p * 4;
-    const v = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-    buf[p] = Math.min(255, Math.max(0, (v - 128) * 1.2 + 128));
-  }
+  const buf = lumaBuf(d, w, h);
   const add = (x, y, v) => { if (x >= 0 && x < w && y < h) buf[y * w + x] += v; };
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const p = y * w + x, i = p * 4;
@@ -258,7 +277,7 @@ function zxFx(d, w, h) {
     const counts = new Array(list.length).fill(0);
     for (let y = cy; y < ye; y++) for (let x = cx; x < xe; x++) {
       const i = (y * w + x) * 4;
-      counts[nearest(d[i], d[i+1], d[i+2], list)]++;
+      counts[nearestCached('zx', list, d[i], d[i+1], d[i+2])]++;
     }
     let a = 0;
     for (let k = 1; k < list.length; k++) if (counts[k] > counts[a]) a = k;
@@ -319,6 +338,8 @@ function frame() {
     const w = +res.value;
     const h = Math.max(1, Math.round(w * sh / sw));
     if (view.width !== w || view.height !== h) { view.width = w; view.height = h; fit(); }
+    vctx.imageSmoothingEnabled = true;
+    vctx.imageSmoothingQuality = 'high';
     vctx.save();
     if (facing === 'user') { vctx.translate(w, 0); vctx.scale(-1, 1); }
     vctx.drawImage(src, 0, 0, w, h);
@@ -452,16 +473,22 @@ async function takePhoto() {
 shootBtn.addEventListener('click', toggleFreeze);
 saveBtn.addEventListener('click', takePhoto);
 
+// Briefly shows why recording is unavailable, then restores the Record label
+function noVideo() {
+  recBtn.textContent = 'No video';
+  setTimeout(() => { if (!recorder) recBtn.textContent = 'Record'; }, 2000);
+}
+
 // Records the processed picture as the camera sees it; press again to stop and save
 recBtn.addEventListener('click', () => {
   if (recorder) { recorder.stop(); return; }
-  if (typeof MediaRecorder === 'undefined' || !view.captureStream) { recBtn.textContent = 'No video'; return; }
+  if (typeof MediaRecorder === 'undefined' || !view.captureStream) { noVideo(); return; }
   const opts = ['video/mp4', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
-  if (!opts) { recBtn.textContent = 'No video'; return; }
+  if (!opts) { noVideo(); return; }
   const ext = opts.startsWith('video/mp4') ? 'mp4' : 'webm';
   chunks = [];
   try { recorder = new MediaRecorder(view.captureStream(30), { mimeType: opts }); }
-  catch (e) { recBtn.textContent = 'No video'; return; }
+  catch (e) { noVideo(); return; }
   recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
   recorder.onstop = () => {
     const blob = new Blob(chunks, { type: opts });
