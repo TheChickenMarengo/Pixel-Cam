@@ -66,6 +66,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button id="shoot" aria-label="Take photo" title="Take photo"></button>
     <button id="rec" title="Record video">Record</button>
     <button id="save" title="Save the current frame">Save PNG</button>
+    <button id="saveVid" disabled title="Save the last recording">Save video</button>
   </div>
 </div>
 <video id="cam" playsinline muted autoplay style="display:none"></video>
@@ -337,6 +338,19 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
+// Saves through the share sheet (Save to Photos / Gallery) when the phone supports it, otherwise downloads the file
+let lastVideo = null;
+const saveVidBtn = document.getElementById('saveVid');
+async function saveFile(blob, name) {
+  const file = new File([blob], name, { type: blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  download(blob, name);
+}
+saveVidBtn.addEventListener('click', () => { if (lastVideo) saveFile(lastVideo.blob, lastVideo.name); });
+
 function flashNow() {
   flash.classList.add('on');
   setTimeout(() => flash.classList.remove('on'), 120);
@@ -346,7 +360,7 @@ async function takePhoto() {
   if (!view.width) return;
   flashNow();
   const blob = await exportBlob();
-  download(blob, `pixel-${pal}-${Date.now()}.png`);
+  await saveFile(blob, `pixel-${pal}-${Date.now()}.png`);
 }
 shootBtn.addEventListener('click', takePhoto);
 saveBtn.addEventListener('click', takePhoto);
@@ -355,7 +369,7 @@ saveBtn.addEventListener('click', takePhoto);
 recBtn.addEventListener('click', () => {
   if (recorder) { recorder.stop(); return; }
   if (typeof MediaRecorder === 'undefined' || !view.captureStream) { recBtn.textContent = 'No video'; return; }
-  const opts = ['video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(t => MediaRecorder.isTypeSupported(t));
+  const opts = ['video/mp4', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
   if (!opts) { recBtn.textContent = 'No video'; return; }
   const ext = opts.startsWith('video/mp4') ? 'mp4' : 'webm';
   chunks = [];
@@ -367,7 +381,8 @@ recBtn.addEventListener('click', () => {
     recorder = null;
     recBtn.textContent = 'Record';
     recBtn.classList.remove('rec-on');
-    download(blob, `pixel-video-${Date.now()}.${ext}`);
+    lastVideo = { blob, name: `pixel-video-${Date.now()}.${ext}` };
+    saveVidBtn.disabled = false;
   };
   recorder.start();
   recBtn.textContent = 'Stop';
