@@ -16,11 +16,11 @@
 :root{--bg:#0b0f0b;--panel:#121a12;--ink:#e6f2d2;--dim:#7a8c6a;--accent:#9bbc0f;--edge:#2c3a2c}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 ui-monospace,Menlo,Consolas,monospace}
-body{display:flex;flex-direction:column;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
+body{position:fixed;inset:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:env(safe-area-inset-bottom)}
 #stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:12px;overflow:hidden}
 #view{display:none;background:#000;image-rendering:pixelated;image-rendering:crisp-edges}
 #msg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--dim)}
-#panel{background:var(--panel);border-top:1px solid var(--edge);padding:10px 12px;display:flex;flex-direction:column;gap:8px;max-height:52%;overflow:auto}
+#panel{background:var(--panel);border-top:1px solid var(--edge);padding:10px 12px;display:flex;flex-direction:column;gap:8px;max-height:52%;overflow:auto;overscroll-behavior:contain;touch-action:pan-y}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .spread{justify-content:space-between}
 button{font:inherit;color:var(--ink);background:#1a241a;border:1px solid var(--edge);padding:8px 10px;border-radius:4px;cursor:pointer}
