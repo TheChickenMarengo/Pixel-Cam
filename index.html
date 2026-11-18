@@ -42,6 +42,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 </div>
 <div id="flash"></div>
 <div id="panel">
+  <div class="dim" id="inst">Checking install…</div>
+  <div class="row"><button id="installBtn" hidden>Install app</button></div>
   <div class="row" id="pals">
     <button data-pal="original" aria-pressed="false">Original</button>
     <button data-pal="gameboy" aria-pressed="true">Game Boy</button>
@@ -377,8 +379,43 @@ if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(() => {}
 
 // Service worker lets the app open offline once it has been visited
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js').then(updateInstall).catch(e => {
+    document.getElementById('inst').textContent = 'Service worker failed: ' + e.message;
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', updateInstall);
 }
+
+// Install check: shows which requirement is missing, and offers the browser's install prompt when it is ready
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; updateInstall(); });
+window.addEventListener('appinstalled', () => { deferredPrompt = null; updateInstall(); });
+document.getElementById('installBtn').addEventListener('click', () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.finally(() => { deferredPrompt = null; updateInstall(); });
+});
+async function updateInstall() {
+  const el = document.getElementById('inst');
+  const btn = document.getElementById('installBtn');
+  if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+    el.textContent = 'Installed and running as an app.';
+    btn.hidden = true;
+    return;
+  }
+  const checks = [];
+  checks.push(location.protocol === 'https:' ? 'https ok' : 'needs https');
+  try {
+    const m = await (await fetch('manifest.json', { cache: 'no-store' })).json();
+    checks.push(m.icons && m.icons.length ? 'manifest ok' : 'manifest has no icons');
+  } catch (e) { checks.push('manifest failed to load'); }
+  checks.push(navigator.serviceWorker && navigator.serviceWorker.controller
+    ? 'offline cache active'
+    : 'offline cache not active yet (reload once)');
+  checks.push(deferredPrompt ? 'install ready' : 'browser has not offered install');
+  el.textContent = checks.join(' · ');
+  btn.hidden = !deferredPrompt;
+}
+setTimeout(updateInstall, 2000);
 
 startCamera();
 requestAnimationFrame(frame);
