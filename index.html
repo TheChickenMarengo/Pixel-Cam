@@ -87,6 +87,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="green" aria-pressed="false">Green screen</button>
     <button data-pal="amber" aria-pressed="false">Amber screen</button>
     <button data-pal="ascii" aria-pressed="false">ASCII</button>
+    <button data-pal="asciic" aria-pressed="false">Colour ASCII</button>
     <button data-pal="dot" aria-pressed="false">Dot matrix</button>
     <button data-pal="st" aria-pressed="false">Atari ST</button>
     <button data-pal="apple" aria-pressed="false">Apple II</button>
@@ -457,7 +458,7 @@ function toggleFreeze() {
 
 // Draws one processed frame of the live camera (or the frozen photo) into the view
 // Cell looks (ASCII, dot matrix): one sample per character or dot, drawn at a fixed cell size
-const CELL_MODES = {ascii: {cap: 140, cw: 6, ch: 8}, dot: {cap: 160, cw: 6, ch: 6}};
+const CELL_MODES = {ascii: {cap: 140, cw: 6, ch: 8}, asciic: {cap: 140, cw: 6, ch: 8}, dot: {cap: 160, cw: 6, ch: 6}};
 // Light to dark. Edges use the four line characters, which are also in the atlas
 const ASCII_RAMP = " .'`:-~=+*ox%#&$@";
 const ASCII_ALL = ASCII_RAMP + '-\\|/';
@@ -480,12 +481,16 @@ function getAtlas(m) {
   return asciiAtlas;
 }
 const cellSrc = document.createElement('canvas');
+const maskCv = document.createElement('canvas'), blockCv = document.createElement('canvas');
+// Resize a canvas only when its size actually changes, since resizing clears it and costs time
+function sized(cv, w, h) { if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } return cv; }
 function cellFrame(src, sw, sh) {
   const m = CELL_MODES[pal];
   const cols = Math.min(+res.value, m.cap);
   const rows = Math.max(1, Math.round(cols * sh / sw * m.cw / m.ch));
   // ASCII samples each character four times (2x2) so edges can be found; dots sample once
-  const S = pal === 'ascii' ? 2 : 1;
+  const isAscii = pal === 'ascii' || pal === 'asciic';
+  const S = isAscii ? 2 : 1;
   const gc = cols * S, gr = rows * S;
   cellSrc.width = gc; cellSrc.height = gr;
   const sctx = cellSrc.getContext('2d', {willReadFrequently: true});
@@ -497,15 +502,27 @@ function cellFrame(src, sw, sh) {
   adjust(data);
   const W = cols * m.cw, H = rows * m.ch;
   if (view.width !== W || view.height !== H) { view.width = W; view.height = H; fit(); }
-  if (pal === 'ascii') {
+  if (isAscii) {
+    const colour = pal === 'asciic';
     vctx.fillStyle = '#000';
     vctx.fillRect(0, 0, W, H);
     const atlas = getAtlas(m);
+    // Colour mode draws the glyphs as a mask, then fills each glyph with its cell's average colour
+    let gctx = vctx, block = null;
+    if (colour) {
+      sized(maskCv, W, H);
+      sized(blockCv, cols, rows);
+      gctx = maskCv.getContext('2d');
+      gctx.clearRect(0, 0, W, H);
+      block = new Uint8ClampedArray(cols * rows * 4);
+    }
     const lum = (X, Y) => { const i = (Y * gc + X) * 4; return 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]; };
     for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
-      let sum = 0, best = 0, gx = 0, gy = 0;
+      let sum = 0, best = 0, gx = 0, gy = 0, sr = 0, sg = 0, sb = 0;
       for (let sy = 0; sy < S; sy++) for (let sx = 0; sx < S; sx++) {
         const X = cx * S + sx, Y = cy * S + sy;
+        const si = (Y * gc + X) * 4;
+        sr += data[si]; sg += data[si+1]; sb += data[si+2];
         sum += lum(X, Y);
         if (X < 1 || Y < 1 || X > gc - 2 || Y > gr - 2) continue;
         // Sobel gradient at this sample; keep the strongest in the cell
@@ -522,7 +539,21 @@ function cellFrame(src, sw, sh) {
       } else {
         c = ASCII_RAMP[Math.round(sum / (S * S) / 255 * (ASCII_RAMP.length - 1))];
       }
-      if (c !== ' ') vctx.drawImage(atlas, ASCII_ALL.indexOf(c) * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
+      if (colour) {
+        const k = (cy * cols + cx) * 4, n = S * S;
+        block[k] = sr / n; block[k+1] = sg / n; block[k+2] = sb / n; block[k+3] = 255;
+      }
+      if (c !== ' ') gctx.drawImage(atlas, ASCII_ALL.indexOf(c) * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
+    }
+    if (colour) {
+      // Keep only the glyph shapes, coloured with the cell colours, then draw them over the black
+      blockCv.getContext('2d').putImageData(new ImageData(block, cols, rows), 0, 0);
+      gctx.globalCompositeOperation = 'source-in';
+      gctx.imageSmoothingEnabled = false;
+      gctx.drawImage(blockCv, 0, 0, W, H);
+      gctx.globalCompositeOperation = 'source-over';
+      gctx.imageSmoothingEnabled = true;
+      vctx.drawImage(maskCv, 0, 0);
     }
   } else {
     // Dot matrix: darker areas get bigger dots of ink on cream paper
