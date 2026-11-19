@@ -1234,8 +1234,9 @@ view.addEventListener('pointercancel', endPointer);
 window.addEventListener('resize', fit);
 
 function exportBlob() {
-  // A whole-number scale with smoothing off, so each picture pixel stays a sharp block. Aims for about 1080 px on the longest side
-  const s = Math.max(1, Math.floor(1080 / Math.max(view.width, view.height)));
+  // Pixel-perfect: the largest whole-number scale that fits 2160 px on the longest side, smoothing off,
+  // so every picture pixel is an exact square block of the same size
+  const s = Math.max(1, Math.floor(2160 / Math.max(view.width, view.height)));
   const out = document.createElement('canvas');
   out.width = view.width * s; out.height = view.height * s;
   const o = out.getContext('2d');
