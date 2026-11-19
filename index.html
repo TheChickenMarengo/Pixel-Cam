@@ -110,6 +110,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-filter="toxic" aria-pressed="false">Toxic</button>
     <button data-filter="blueprint" aria-pressed="false">Blueprint</button>
     <button data-filter="riso" aria-pressed="false">Risograph</button>
+    <button data-filter="nightvision" aria-pressed="false">Night vision</button>
     <button data-filter="random" aria-pressed="false">Random</button>
   </div>
   <div class="row"><button id="adjBtn" aria-pressed="true">Adjust ▴</button></div>
@@ -215,6 +216,7 @@ const FILTERS = {
   toxic: gradientLut(['#000000', '#0a3a0a', '#2ee02e', '#c8ff40']),
   blueprint: gradientLut(['#0a2a6a', '#2a5aa8', '#7aa8e0', '#ffffff']),
   riso: gradientLut(['#1a1a1a', '#2a7fff', '#ff48b0', '#f4efe6']),
+  nightvision: gradientLut(['#000000', '#03260a', '#1a7a24', '#57ff5a', '#e8ffe8']),
   random: null // set by randomGradientLut() each time the button is tapped
 };
 FILTERS.random = randomGradientLut();
@@ -1119,7 +1121,8 @@ view.addEventListener('pointercancel', endPointer);
 window.addEventListener('resize', fit);
 
 function exportBlob() {
-  const s = Math.max(1, Math.floor(900 / view.width));
+  // A whole-number scale with smoothing off, so each picture pixel stays a sharp block. Aims for about 1080 px on the longest side
+  const s = Math.max(1, Math.floor(1080 / Math.max(view.width, view.height)));
   const out = document.createElement('canvas');
   out.width = view.width * s; out.height = view.height * s;
   const o = out.getContext('2d');
