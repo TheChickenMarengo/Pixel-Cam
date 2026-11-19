@@ -525,7 +525,6 @@ function toggleFreeze() {
   frozenFrame.getContext('2d').drawImage(cam, 0, 0);
   frozen = true;
   dirty = true;
-  if (pal === 'zxr') newZxSeed(); // each new photo gets its own colours
   frozenNow = performance.now();
   shootBtn.classList.add('frozen');
   shootBtn.title = 'Retake';
