@@ -1232,11 +1232,10 @@ async function keepAwake() {
 }
 keepAwake();
 document.addEventListener('visibilitychange', keepAwake);
-// Phones stop the camera while the app is in the background. On return, go back to live view
-// and start the camera again if it stopped. An unsaved recording stays on screen.
+// Phones stop the camera while the app is in the background. On return, start the camera again if it stopped.
+// A frozen photo or an unsaved recording stays on screen, so nothing unsaved is lost.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  if (!reviewVid && frozen) toggleFreeze(); // back to live view, and clears the shutter's frozen look
   const track = stream && stream.getVideoTracks()[0];
   if (!track || track.readyState !== 'live') startCamera();
   else if (cam.paused) cam.play().catch(() => {});
