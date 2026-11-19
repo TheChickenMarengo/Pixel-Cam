@@ -78,6 +78,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="cga" aria-pressed="false">CGA</button>
     <button data-pal="pico8" aria-pressed="false">Pico-8</button>
     <button data-pal="vhs" aria-pressed="false">VHS</button>
+    <button data-pal="amiga" aria-pressed="false">Amiga 500</button>
+    <button data-pal="cpc" aria-pressed="false">Amstrad CPC</button>
+    <button data-pal="atari" aria-pressed="false">Atari 2600</button>
+    <button data-pal="ega" aria-pressed="false">EGA</button>
+    <button data-pal="vb" aria-pressed="false">Virtual Boy</button>
+    <button data-pal="nokia" aria-pressed="false">Nokia 3310</button>
+    <button data-pal="green" aria-pressed="false">Green screen</button>
+    <button data-pal="amber" aria-pressed="false">Amber screen</button>
   </div>
   <div class="row"><button id="adjBtn" aria-pressed="true">Adjust ▴</button></div>
   <div id="adjust">
@@ -99,6 +107,30 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 </div>
 <video id="cam" playsinline muted autoplay style="display:none"></video>
 <script>
+// Hex helpers for the generated palettes
+const hx = v => Math.round(v).toString(16).padStart(2, '0');
+// Every combination of the given channel levels (3 levels give 27 colours, 4 levels give 64)
+function grid(levels) {
+  const out = [];
+  for (const r of levels) for (const g of levels) for (const b of levels) out.push('#' + hx(r) + hx(g) + hx(b));
+  return out;
+}
+// Hue, saturation and lightness (0-1) to hex
+function hslHex(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return '#' + hx((r + m) * 255) + hx((g + m) * 255) + hx((b + m) * 255);
+}
+// Atari 2600 (NTSC): 16 hues in 8 brightness steps, with hue 0 as the grey row
+function atariColours() {
+  const out = [];
+  for (let hue = 0; hue < 16; hue++) for (let lum = 0; lum < 8; lum++) {
+    const l = 0.1 + lum * 0.11;
+    out.push(hue === 0 ? hslHex(0, 0, l) : hslHex((hue - 1) * 360 / 15, 0.8, l * 0.9 + 0.05));
+  }
+  return out;
+}
+
 const PALETTES = {
   original: null,
   gameboy: {mode:'ramp', colours:['#0f380f','#306230','#8bac0f','#9bbc0f']},
@@ -110,7 +142,22 @@ const PALETTES = {
   zx: {mode:'zx', colours:['#000000','#0000cd','#cd0000','#cd00cd','#00cd00','#00cdcd','#cdcd00','#cdcdcd','#0000ff','#ff0000','#ff00ff','#00ff00','#00ffff','#ffff00','#ffffff']},
   pocket: {mode:'ramp', colours:['#000000','#555555','#aaaaaa','#ffffff']},
   cga: {mode:'nearest', colours:['#000000','#55ffff','#ff55ff','#ffffff']},
-  pico8: {mode:'nearest', colours:['#000000','#1d2b53','#7e2553','#008751','#ab5236','#5f574f','#c2c3c7','#fff1e8','#ff004d','#ffa300','#ffec27','#00e436','#29adff','#83769c','#ff77a8','#ffccaa']}
+  pico8: {mode:'nearest', colours:['#000000','#1d2b53','#7e2553','#008751','#ab5236','#5f574f','#c2c3c7','#fff1e8','#ff004d','#ffa300','#ffec27','#00e436','#29adff','#83769c','#ff77a8','#ffccaa']},
+  // Amstrad CPC: its 27 hardware colours are every mix of 0, half and full on each channel
+  cpc: {mode:'nearest', colours:grid([0,128,255])},
+  // Amiga OCS: a 32-colour set in the spirit of Workbench and the classic games
+  amiga: {mode:'nearest', colours:['#000000','#ffffff','#aaaaaa','#555555','#3b67a2','#7ea0d8','#0a2a5a','#ff8800','#ffaa44','#884400','#cc2200','#ff6666','#00aa44','#66dd88','#005522','#aadd22','#dddd00','#886600','#2288cc','#44ccff','#0055aa','#aa44cc','#dd88ff','#552277','#cc6688','#ffccaa','#664433','#eeddbb','#88cc88','#336666','#ff3399','#33ccaa']},
+  // Atari 2600: a 128-colour TIA palette, and the picture is limited to 160 px wide in drawFrame
+  atari: {mode:'nearest', colours:atariColours()},
+  // EGA: the 64-colour palette (2 bits per channel), unlike the 16-colour DOS set
+  ega: {mode:'nearest', colours:grid([0,85,170,255])},
+  // Virtual Boy: four shades of red LED
+  vb: {mode:'ramp', colours:['#000000','#4a0000','#a00000','#ff1a1a']},
+  // Nokia 3310: four greys on the pale green LCD
+  nokia: {mode:'ramp', colours:['#1d2a1d','#4d5e4a','#8a9a7c','#c4d2b0']},
+  // Monochrome phosphor screens
+  green: {mode:'ramp', colours:['#001400','#0f5a0f','#22aa22','#66ff66']},
+  amber: {mode:'ramp', colours:['#140800','#663300','#cc7a00','#ffb000']}
 };
 const BAYER = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 const B8 = [0,48,12,60,3,51,15,63,32,16,44,28,35,19,47,31,8,56,4,52,11,59,7,55,40,24,36,20,43,27,39,23,2,50,14,62,1,49,13,61,34,18,46,30,33,17,45,29,10,58,6,54,9,57,5,53,42,26,38,22,41,25,37,21];
@@ -410,7 +457,7 @@ function drawFrame() {
   if (src) {
     const sw = src.videoWidth || src.width;
     const sh = src.videoHeight || src.height;
-    const w = +res.value;
+    const w = pal === 'atari' ? Math.min(+res.value, 160) : +res.value;
     const h = Math.max(1, Math.round(w * sh / sw));
     if (view.width !== w || view.height !== h) { view.width = w; view.height = h; fit(); }
     vctx.imageSmoothingEnabled = true;
