@@ -589,7 +589,7 @@ const CELL_MODES = {ascii: {cap: 120, cw: 6, ch: 8}, asciic: {cap: 120, cw: 6, c
 // Candidate glyphs; they are sorted by how much ink each one draws, so brightness steps look even
 const ASCII_CANDIDATES = ' .\'`^",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
 let ASCII_RAMP = ASCII_CANDIDATES;
-let asciiAtlas = null, asciiOut = null, asciiLut = null;
+let asciiAtlas = null, asciiOut = null, asciiLut = null, asciiAlpha = null, asciiBuf = null;
 // Every glyph drawn once into one strip, so each cell is a fast image copy
 function getAtlas(m) {
   if (!asciiAtlas) {
@@ -628,6 +628,14 @@ function getAtlas(m) {
     a.textBaseline = 'middle';
     a.fillStyle = '#d8ffd8';
     for (let i = 0; i < ASCII_RAMP.length; i++) a.fillText(ASCII_RAMP[i], i * m.cw + m.cw / 2, m.ch / 2);
+    // Each glyph's coverage as its own small array, so cells can be written straight into pixels
+    const ad = a.getImageData(0, 0, asciiAtlas.width, m.ch).data;
+    asciiAlpha = [];
+    for (let g = 0; g < ASCII_RAMP.length; g++) {
+      const A = new Uint8Array(m.cw * m.ch);
+      for (let y = 0; y < m.ch; y++) for (let x = 0; x < m.cw; x++) A[y * m.cw + x] = ad[(y * asciiAtlas.width + g * m.cw + x) * 4 + 3];
+      asciiAlpha.push(A);
+    }
   }
   return asciiAtlas;
 }
@@ -655,17 +663,7 @@ function cellFrame(src, sw, sh) {
   if (view.width !== W || view.height !== H) { view.width = W; view.height = H; fit(); }
   if (isAscii) {
     const colour = pal === 'asciic';
-    vctx.fillStyle = '#000';
-    vctx.fillRect(0, 0, W, H);
-    const atlas = getAtlas(m);
-    // Colour mode draws the glyphs as a mask, then fills each glyph with its cell's colour from the picture
-    let gctx = vctx;
-    if (colour) {
-      sized(maskCv, W, H);
-      sized(blockCv, cols, rows);
-      gctx = maskCv.getContext('2d');
-      gctx.clearRect(0, 0, W, H);
-    }
+    getAtlas(m); // builds the glyph tables on first use
     const lum = (X, Y) => { const i = (Y * cols + X) * 4; return 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]; };
     // Colour mode: each cell's colour is lifted to a fixed brightness (hue kept), so the glyph's lit share sets the tone
     let bd = null, bl = null;
@@ -678,22 +676,32 @@ function cellFrame(src, sw, sh) {
         bl[c] = 0.299 * bd[i] + 0.587 * bd[i+1] + 0.114 * bd[i+2];
       }
     }
+    // Glyphs are written straight into one pixel buffer, then put on the view once. This replaces one drawImage call per
+    // glyph, which was the slow part at high column counts
+    if (!asciiBuf || asciiBuf.length !== W * H * 4) {
+      asciiBuf = new Uint8ClampedArray(W * H * 4);
+      for (let i = 3; i < asciiBuf.length; i += 4) asciiBuf[i] = 255;
+    }
+    const buf = asciiBuf;
+    for (let i = 0; i < buf.length; i += 4) { buf[i] = 0; buf[i+1] = 0; buf[i+2] = 0; } // black background
     for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
       // Colour mode: the glyph must make up the source brightness out of the cell colour's actual brightness
       const target = colour ? lum(cx, cy) / Math.max(1, bl[cy * cols + cx]) * 235 : lum(cx, cy);
       const glyph = asciiLut[Math.min(255, Math.round(target))];
-      if (ASCII_RAMP[glyph] !== ' ') gctx.drawImage(atlas, glyph * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
+      if (ASCII_RAMP[glyph] === ' ') continue;
+      const A = asciiAlpha[glyph];
+      // Mono: the glyph colour #d8ffd8. Colour: the cell's own colour
+      const j = (cy * cols + cx) * 4;
+      const r = colour ? bd[j] : 216, g = colour ? bd[j+1] : 255, b = colour ? bd[j+2] : 216;
+      for (let py = 0; py < m.ch; py++) {
+        let o = ((cy * m.ch + py) * W + cx * m.cw) * 4;
+        for (let px = 0; px < m.cw; px++, o += 4) {
+          const a = A[py * m.cw + px];
+          if (a) { buf[o] = r * a / 255; buf[o+1] = g * a / 255; buf[o+2] = b * a / 255; }
+        }
+      }
     }
-    if (colour) {
-      // Keep only the glyph shapes, coloured with the cell colours, then draw them over the black
-      blockCv.getContext('2d').putImageData(new ImageData(bd, cols, rows), 0, 0);
-      gctx.globalCompositeOperation = 'source-in';
-      gctx.imageSmoothingEnabled = false;
-      gctx.drawImage(blockCv, 0, 0, W, H);
-      gctx.globalCompositeOperation = 'source-over';
-      gctx.imageSmoothingEnabled = true;
-      vctx.drawImage(maskCv, 0, 0);
-    }
+    vctx.putImageData(new ImageData(buf, W, H), 0, 0);
   } else {
     // Dot matrix: darker areas get bigger dots of ink on cream paper
     vctx.fillStyle = '#f4efe0';
