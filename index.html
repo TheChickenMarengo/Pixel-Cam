@@ -347,11 +347,11 @@ function vhsRand(x, y, t) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 let vhsCopy = null;
-function vhs(d, w, h, still) {
+function vhs(d, w, h) {
   if (!vhsCopy || vhsCopy.length !== d.length) vhsCopy = new Uint8ClampedArray(d.length);
   const src = vhsCopy;
   src.set(d);
-  const now = still ? 0 : performance.now();
+  const now = performance.now();
   const tick = Math.floor(now / 120);
   const band = Math.floor(now / 70) % (h + 6) - 6;
   for (let y = 0; y < h; y++) {
@@ -426,7 +426,7 @@ function drawFrame() {
     else if (pal === 'zx') zxFx(img.data, w, h);
     else if (pal === 'md') channelQuant(img.data, w, h, 8);
     else if (pal === 'sms') channelQuant(img.data, w, h, 4);
-    else if (pal === 'vhs') vhs(img.data, w, h, frozen);
+    else if (pal === 'vhs') vhs(img.data, w, h);
     else if (pal !== 'original') quantise(img.data, w, h);
     vctx.putImageData(img, 0, 0);
     view.style.display = 'block';
