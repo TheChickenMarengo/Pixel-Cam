@@ -115,9 +115,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
-  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button></div>
-  <div class="row" id="shape"><button data-shape="square" aria-pressed="false">Square</button><button data-shape="tall" aria-pressed="false">Tall</button><button data-shape="wide" aria-pressed="false">Wide</button></div>
-  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
+  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
   <input type="range" id="bri" min="-100" max="100" step="5" value="0">
@@ -255,11 +253,7 @@ const ASCII_COLS = {min: 20, max: 120, step: 10, def: 120};
 const PX_RES = {min: 32, max: 768, step: 8, def: 160};
 let resIsAsc = null, pxRes = +SAVED.res || 160, ascCols = +SAVED.asc || 120;
 // Which characters the ASCII styles may use (set in getAtlas)
-let asciiSet = SAVED.charset || 'all';
-// Display-only shape: stretches the picture vertically. The export always uses square pixels
-const SHAPE_SCALE = {square: 1, tall: 1.2, wide: 0.83};
-let pixelShape = SHAPE_SCALE[SAVED.shape] ? SAVED.shape : 'square';
-if (SAVED.con) document.getElementById('con').value = SAVED.con;
+let asciiSet = SAVED.charset || 'all';if (SAVED.con) document.getElementById('con').value = SAVED.con;
 if (SAVED.bri) document.getElementById('bri').value = SAVED.bri;
 if (SAVED.sat) document.getElementById('sat').value = SAVED.sat;
 // Show the restored values on the labels too
@@ -270,7 +264,7 @@ function writeSettings() {
   try { localStorage.setItem('pixelcam', JSON.stringify({
     pal, dither, facing, filter: filterName,
     res: resIsAsc ? pxRes : res.value, asc: resIsAsc ? res.value : ascCols,
-    charset: asciiSet, shape: pixelShape,
+    charset: asciiSet,
     con: conEl.value, bri: briEl.value, sat: satEl.value, favs: [...favs]
   })); } catch (e) {}
 }
@@ -564,11 +558,10 @@ function vhs(d, w, h, at) {
 function fit() {
   if (!view.width) return;
   const sw = stage.clientWidth - 24, sh = stage.clientHeight - 24;
-  const k = SHAPE_SCALE[pixelShape];
-  let s = Math.min(sw / view.width, sh / (view.height * k));
+  let s = Math.min(sw / view.width, sh / view.height);
   if (s >= 1) s = Math.floor(s);
   view.style.width = (view.width * s) + 'px';
-  view.style.height = (view.height * s * k) + 'px';
+  view.style.height = (view.height * s) + 'px';
 }
 
 // Shutter freezes the current frame so it can be edited; press again to return to live
@@ -1321,16 +1314,6 @@ document.querySelectorAll('#charsets button').forEach(b => {
     asciiAtlas = null; // rebuilt with the new characters on the next frame
     document.querySelectorAll('#charsets button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     dirty = true; // a frozen picture is redrawn with the new characters
-    persist();
-  });
-});
-// Display shape: square, tall or wide pixels
-document.querySelectorAll('#shape button').forEach(b => {
-  b.setAttribute('aria-pressed', String(b.dataset.shape === pixelShape));
-  b.addEventListener('click', () => {
-    pixelShape = b.dataset.shape;
-    document.querySelectorAll('#shape button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-    fit();
     persist();
   });
 });
