@@ -340,12 +340,20 @@ function channelQuant(d, w, h, levels) {
 }
 
 // VHS: soft red and blue colour bleed, sharp green, row noise, scanlines and one tracking band that shifts each frame
+// Deterministic noise per pixel and time step, so the grain changes at a steady rate rather than on every redraw
+function vhsRand(x, y, t) {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(t, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 let vhsCopy = null;
 function vhs(d, w, h) {
   if (!vhsCopy || vhsCopy.length !== d.length) vhsCopy = new Uint8ClampedArray(d.length);
   const src = vhsCopy;
   src.set(d);
-  const band = Math.floor(Math.random() * h);
+  const now = performance.now();
+  const tick = Math.floor(now / 120);
+  const band = Math.floor(now / 70) % (h + 6) - 6;
   for (let y = 0; y < h; y++) {
     const shift = (y >= band && y < band + 4) ? 3 : 0;
     const row = y * w * 4;
@@ -356,7 +364,7 @@ function vhs(d, w, h) {
       const left = row + Math.max(0, sx - 1) * 4;
       const right = row + Math.min(w - 1, sx + 1) * 4;
       const far = row + Math.max(0, sx - 2) * 4;
-      const noise = (Math.random() - 0.5) * 20;
+      const noise = (vhsRand(x, y, tick) - 0.5) * 20;
       const scan = y % 2 ? 0.9 : 1;
       d[i]   = (src[cur] * 0.5 + src[left] * 0.25 + src[right] * 0.25 + noise) * scan;
       d[i+1] = (src[cur+1] + noise * 0.5) * scan;
