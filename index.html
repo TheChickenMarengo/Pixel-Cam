@@ -1006,7 +1006,7 @@ function showMessage(text) {
 
 // Opens the camera straight away when the app loads
 async function startCamera() {
-  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (stream) stream.getTracks().forEach(t => { t.onended = null; t.stop(); });
   stream = null;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showMessage('This browser cannot open the camera. Open the page over https in Safari or Chrome.');
@@ -1018,6 +1018,8 @@ async function startCamera() {
       audio: false
     });
     cam.srcObject = stream;
+    // If the system ends the camera while the page is open, start it again
+    stream.getVideoTracks().forEach(t => { t.onended = () => startCamera(); });
     await cam.play();
   } catch (e) {
     showMessage('Camera unavailable (' + (e.name || 'error') + '). Allow camera access for this site and try again.');
@@ -1230,6 +1232,15 @@ async function keepAwake() {
 }
 keepAwake();
 document.addEventListener('visibilitychange', keepAwake);
+// Phones stop the camera while the app is in the background. On return, go back to live view
+// and start the camera again if it stopped. An unsaved recording stays on screen.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!reviewVid && frozen) toggleFreeze(); // back to live view, and clears the shutter's frozen look
+  const track = stream && stream.getVideoTracks()[0];
+  if (!track || track.readyState !== 'live') startCamera();
+  else if (cam.paused) cam.play().catch(() => {});
+});
 
 // Service worker lets the app open offline once it has been visited
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
