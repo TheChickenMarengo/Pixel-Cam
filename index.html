@@ -189,10 +189,10 @@ function gradientLut(stops) {
 const FILTERS = {
   none: null,
   spectrum: gradientLut(['#000000', '#c020a0', '#20c8d8', '#f5e800']),
-  ocean: gradientLut(['#000818', '#0a3c8c', '#20b4e0', '#ffffff']),
-  alert: gradientLut(['#000000', '#8a0000', '#e02020', '#ffe040']),
+  ocean: gradientLut(['#000818', '#0a1c5c', '#1040b0', '#20b4e0', '#a0e8ff', '#ffffff']),
+  alert: gradientLut(['#000000', '#5a0000', '#a01010', '#e02020', '#ff7040', '#ffe040', '#ffffff']),
   knight: gradientLut(['#000000', '#4a4a4a', '#9a9a9a', '#f2f2f2']),
-  jungle: gradientLut(['#001a00', '#0a7a1a', '#60c040', '#f0e050'])
+  jungle: gradientLut(['#001a10', '#0a5a1a', '#0a7a1a', '#40a020', '#60c040', '#a0e040', '#f0e050'])
 };
 // Applies a filter in place, using each pixel's brightness
 function applyFilter(d, lut) {
