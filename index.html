@@ -91,8 +91,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="st" aria-pressed="false">Atari ST</button>
     <button data-pal="apple" aria-pressed="false">Apple II</button>
     <button data-pal="bluen" aria-pressed="false">Blue noise</button>
-    <button data-pal="knight" aria-pressed="false">Knight Lore</button>
-    <button data-pal="zx256" aria-pressed="false">ZX 256 px</button>
   </div>
   <div class="row"><button id="adjBtn" aria-pressed="true">Adjust ▴</button></div>
   <div id="adjust">
@@ -164,9 +162,7 @@ const PALETTES = {
   nokia: {mode:'ramp', colours:['#1d2a1d','#4d5e4a','#8a9a7c','#c4d2b0']},
   // Monochrome phosphor screens
   green: {mode:'ramp', colours:['#001400','#0f5a0f','#22aa22','#66ff66']},
-  amber: {mode:'ramp', colours:['#140800','#663300','#cc7a00','#ffb000']},
-  // Knight Lore: black, grey and white, with stippled shading
-  knight: {mode:'ramp', colours:['#000000','#4a4a4a','#9a9a9a','#f2f2f2']}
+  amber: {mode:'ramp', colours:['#140800','#663300','#cc7a00','#ffb000']}
 };
 const BAYER = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 const B8 = [0,48,12,60,3,51,15,63,32,16,44,28,35,19,47,31,8,56,4,52,11,59,7,55,40,24,36,20,43,27,39,23,2,50,14,62,1,49,13,61,34,18,46,30,33,17,45,29,10,58,6,54,9,57,5,53,42,26,38,22,41,25,37,21];
@@ -673,7 +669,7 @@ function drawFrame() {
     const sw = src.videoWidth || src.width;
     const sh = src.videoHeight || src.height;
     if (!reviewVid && CELL_MODES[pal]) { cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
-    const cap = {atari: 160, apple: 280, zx256: 256}[pal];
+    const cap = {atari: 160, apple: 280}[pal];
   // A review clip is drawn at the size it was recorded, so it is not rescaled
   const w = reviewVid ? sw : cap ? Math.min(+res.value, cap) : +res.value;
     const h = Math.max(1, Math.round(w * sh / sw));
@@ -691,7 +687,7 @@ function drawFrame() {
     if (pal === 'dos') diffuse(img.data, w, h);
     else if (pal === 'mono2') mono1(img.data, w, h);
     else if (pal === 'atkinson') atkinson(img.data, w, h);
-    else if (pal === 'zx' || pal === 'zx256') zxFx(img.data, w, h);
+    else if (pal === 'zx') zxFx(img.data, w, h);
     else if (pal === 'md') channelQuant(img.data, w, h, 8);
     else if (pal === 'sms') channelQuant(img.data, w, h, 4);
     else if (pal === 'vhs') vhs(img.data, w, h, frozen ? frozenNow : undefined);
