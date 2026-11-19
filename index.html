@@ -245,6 +245,7 @@ const recBtn = document.getElementById('rec');
 const saveBtn = document.getElementById('save');
 const shootBtn = document.getElementById('shoot');
 const flash = document.getElementById('flash');
+const conEl = document.getElementById('con'), briEl = document.getElementById('bri'), satEl = document.getElementById('sat');
 
 // Settings are remembered on this device when storage is available
 const SAVED = (() => { try { return JSON.parse(localStorage.getItem('pixelcam') || '{}'); } catch (e) { return {}; } })();
@@ -261,15 +262,20 @@ resLabel.textContent = res.value + ' px wide';
 document.getElementById('conLabel').textContent = (+document.getElementById('con').value).toFixed(2);
 document.getElementById('briLabel').textContent = document.getElementById('bri').value;
 document.getElementById('satLabel').textContent = (+document.getElementById('sat').value).toFixed(2);
-function persist() {
-  dirty = true;
+function writeSettings() {
   try { localStorage.setItem('pixelcam', JSON.stringify({
     pal, dither, facing, filter: filterName, res: res.value,
-    con: document.getElementById('con').value,
-    bri: document.getElementById('bri').value,
-    sat: document.getElementById('sat').value
+    con: conEl.value, bri: briEl.value, sat: satEl.value
   })); } catch (e) {}
 }
+// Settings are written after a short pause, so dragging a slider doesn't write on every move
+let persistTimer = 0;
+function persist() {
+  dirty = true;
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(writeSettings, 300);
+}
+addEventListener('pagehide', () => { clearTimeout(persistTimer); writeSettings(); });
 
 // Fall back to the default if the remembered palette no longer exists
 if (![...document.querySelectorAll('#pals button')].some(b => b.dataset.pal === pal)) pal = 'gameboy';
@@ -301,9 +307,9 @@ function nearestCached(name, list, r, g, b) {
 
 // Contrast around mid-grey, brightness offset, then saturation
 function adjust(d) {
-  const c = +document.getElementById('con').value;
-  const b = +document.getElementById('bri').value;
-  const s = +document.getElementById('sat').value;
+  const c = +conEl.value;
+  const b = +briEl.value;
+  const s = +satEl.value;
   if (c === 1 && b === 0 && s === 1) return;
   for (let i = 0; i < d.length; i += 4) {
     const r = (d[i] - 128) * c + 128 + b;
@@ -619,8 +625,9 @@ function cellFrame(src, sw, sh) {
     }
     const lum = (X, Y) => { const i = (Y * cols + X) * 4; return 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]; };
     for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
-      const c = ASCII_RAMP[Math.round(lum(cx, cy) / 255 * (ASCII_RAMP.length - 1))];
-      if (c !== ' ') gctx.drawImage(atlas, ASCII_ALL.indexOf(c) * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
+      const glyph = Math.round(lum(cx, cy) / 255 * (ASCII_RAMP.length - 1));
+      const c = ASCII_RAMP[glyph];
+      if (c !== ' ') gctx.drawImage(atlas, glyph * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
     }
     if (colour) {
       // Keep only the glyph shapes, coloured with the cell colours, then draw them over the black
@@ -688,11 +695,12 @@ function atariST(d, w, h) {
 
 // Apple II hi-res: each 7-pixel block uses one of two colour sets, and a lit pixel next to another lit pixel turns white
 const APPLE_VIOLET = [255, 68, 253], APPLE_GREEN = [20, 245, 60], APPLE_BLUE = [20, 207, 253], APPLE_ORANGE = [255, 106, 60];
+const APPLE_PAIR_A = [APPLE_VIOLET, APPLE_GREEN], APPLE_PAIR_B = [APPLE_BLUE, APPLE_ORANGE];
+const APPLE_BLACK = [0, 0, 0], APPLE_WHITE = [255, 255, 255];
 function appleHires(d, w, h) {
   const on = new Uint8Array(w);
   const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
   const setA = mid(APPLE_VIOLET, APPLE_GREEN), setB = mid(APPLE_BLUE, APPLE_ORANGE);
-  const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
   for (let y = 0; y < h; y++) {
     const row = y * w * 4;
     for (let x = 0; x < w; x++) {
@@ -705,13 +713,15 @@ function appleHires(d, w, h) {
       const x1 = Math.min(x0 + 7, w), n = x1 - x0;
       let r = 0, g = 0, b = 0;
       for (let x = x0; x < x1; x++) { const i = row + x * 4; r += d[i]; g += d[i+1]; b += d[i+2]; }
-      const mean = [r / n, g / n, b / n];
-      const pair = d2(mean, setA) <= d2(mean, setB) ? [APPLE_VIOLET, APPLE_GREEN] : [APPLE_BLUE, APPLE_ORANGE];
+      const mr = r / n, mg = g / n, mb = b / n;
+      const dA = (mr - setA[0]) ** 2 + (mg - setA[1]) ** 2 + (mb - setA[2]) ** 2;
+      const dB = (mr - setB[0]) ** 2 + (mg - setB[1]) ** 2 + (mb - setB[2]) ** 2;
+      const pair = dA <= dB ? APPLE_PAIR_A : APPLE_PAIR_B;
       for (let x = x0; x < x1; x++) {
         const i = row + x * 4;
         let c;
-        if (!on[x]) c = [0, 0, 0];
-        else if ((x > 0 && on[x-1]) || (x < w - 1 && on[x+1])) c = [255, 255, 255];
+        if (!on[x]) c = APPLE_BLACK;
+        else if ((x > 0 && on[x-1]) || (x < w - 1 && on[x+1])) c = APPLE_WHITE;
         else c = pair[x & 1];
         d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
       }
@@ -1042,7 +1052,13 @@ recBtn.addEventListener('click', () => {
 });
 
 // Keep the screen awake while the camera is open where the browser allows it
-if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(() => {});
+// The lock is released whenever the page is hidden, so it is asked for again when the page comes back
+async function keepAwake() {
+  if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+  try { await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+keepAwake();
+document.addEventListener('visibilitychange', keepAwake);
 
 // Service worker lets the app open offline once it has been visited
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
