@@ -576,7 +576,7 @@ const CELL_MODES = {ascii: {cap: 120, cw: 6, ch: 8}, asciic: {cap: 120, cw: 6, c
 // Candidate glyphs; they are sorted by how much ink each one draws, so brightness steps look even
 const ASCII_CANDIDATES = ' .\'`^",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
 let ASCII_RAMP = ASCII_CANDIDATES;
-let asciiAtlas = null;
+let asciiAtlas = null, asciiOut = null, asciiLut = null;
 // Every glyph drawn once into one strip, so each cell is a fast image copy
 function getAtlas(m) {
   if (!asciiAtlas) {
@@ -597,6 +597,15 @@ function getAtlas(m) {
     });
     const order = chars.map((_, i) => i).sort((a, b) => ink[a] - ink[b]);
     ASCII_RAMP = order.map(i => chars[i]).join('');
+    // Brightness each glyph actually gives on screen: its lit share of the cell times the glyph colour's luminance (about 235)
+    const cellPx = m.cw * m.ch * 255;
+    asciiOut = order.map(i => ink[i] / cellPx * 235);
+    // For each source brightness 0-255, the glyph whose on-screen brightness is closest
+    asciiLut = new Uint8Array(256);
+    for (let v = 0, g = 0; v < 256; v++) {
+      while (g < asciiOut.length - 1 && Math.abs(asciiOut[g + 1] - v) <= Math.abs(asciiOut[g] - v)) g++;
+      asciiLut[v] = g;
+    }
     asciiAtlas = document.createElement('canvas');
     asciiAtlas.width = m.cw * ASCII_RAMP.length;
     asciiAtlas.height = m.ch;
@@ -645,14 +654,26 @@ function cellFrame(src, sw, sh) {
       gctx.clearRect(0, 0, W, H);
     }
     const lum = (X, Y) => { const i = (Y * cols + X) * 4; return 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]; };
+    // Colour mode: each cell's colour is lifted to a fixed brightness (hue kept), so the glyph's lit share sets the tone
+    let bd = null, bl = null;
+    if (colour) {
+      bd = new Uint8ClampedArray(data);
+      bl = new Float32Array(cols * rows);
+      for (let i = 0, c = 0; i < bd.length; i += 4, c++) {
+        const l = 0.299 * bd[i] + 0.587 * bd[i+1] + 0.114 * bd[i+2];
+        if (l > 0) { const k = 235 / l; bd[i] *= k; bd[i+1] *= k; bd[i+2] *= k; }
+        bl[c] = 0.299 * bd[i] + 0.587 * bd[i+1] + 0.114 * bd[i+2];
+      }
+    }
     for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
-      const glyph = Math.round(lum(cx, cy) / 255 * (ASCII_RAMP.length - 1));
-      const c = ASCII_RAMP[glyph];
-      if (c !== ' ') gctx.drawImage(atlas, glyph * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
+      // Colour mode: the glyph must make up the source brightness out of the cell colour's actual brightness
+      const target = colour ? lum(cx, cy) / Math.max(1, bl[cy * cols + cx]) * 235 : lum(cx, cy);
+      const glyph = asciiLut[Math.min(255, Math.round(target))];
+      if (ASCII_RAMP[glyph] !== ' ') gctx.drawImage(atlas, glyph * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
     }
     if (colour) {
       // Keep only the glyph shapes, coloured with the cell colours, then draw them over the black
-      blockCv.getContext('2d').putImageData(new ImageData(data, cols, rows), 0, 0);
+      blockCv.getContext('2d').putImageData(new ImageData(bd, cols, rows), 0, 0);
       gctx.globalCompositeOperation = 'source-in';
       gctx.imageSmoothingEnabled = false;
       gctx.drawImage(blockCv, 0, 0, W, H);
