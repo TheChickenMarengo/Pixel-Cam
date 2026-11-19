@@ -457,35 +457,72 @@ function toggleFreeze() {
 
 // Draws one processed frame of the live camera (or the frozen photo) into the view
 // Cell looks (ASCII, dot matrix): one sample per character or dot, drawn at a fixed cell size
-const CELL_MODES = {ascii: {cap: 120, cw: 6, ch: 8}, dot: {cap: 160, cw: 6, ch: 6}};
-const ASCII_RAMP = ' .:-=+*#%@';
+const CELL_MODES = {ascii: {cap: 140, cw: 6, ch: 8}, dot: {cap: 160, cw: 6, ch: 6}};
+// Light to dark. Edges use the four line characters, which are also in the atlas
+const ASCII_RAMP = " .'`:-~=+*ox%#&$@";
+const ASCII_ALL = ASCII_RAMP + '-\\|/';
+const EDGE_CHARS = ['-', '\\', '|', '/'];
+const EDGE_T = 150; // Sobel strength (0-255 scale) a cell needs before it gets a line character
+let asciiAtlas = null;
+// Every glyph drawn once into one strip, so each cell is a fast image copy
+function getAtlas(m) {
+  if (!asciiAtlas) {
+    asciiAtlas = document.createElement('canvas');
+    asciiAtlas.width = m.cw * ASCII_ALL.length;
+    asciiAtlas.height = m.ch;
+    const a = asciiAtlas.getContext('2d');
+    a.font = m.ch + 'px monospace';
+    a.textAlign = 'center';
+    a.textBaseline = 'middle';
+    a.fillStyle = '#c8ffc8';
+    for (let i = 0; i < ASCII_ALL.length; i++) a.fillText(ASCII_ALL[i], i * m.cw + m.cw / 2, m.ch / 2);
+  }
+  return asciiAtlas;
+}
 const cellSrc = document.createElement('canvas');
 function cellFrame(src, sw, sh) {
   const m = CELL_MODES[pal];
   const cols = Math.min(+res.value, m.cap);
   const rows = Math.max(1, Math.round(cols * sh / sw * m.cw / m.ch));
-  cellSrc.width = cols; cellSrc.height = rows;
+  // ASCII samples each character four times (2x2) so edges can be found; dots sample once
+  const S = pal === 'ascii' ? 2 : 1;
+  const gc = cols * S, gr = rows * S;
+  cellSrc.width = gc; cellSrc.height = gr;
   const sctx = cellSrc.getContext('2d', {willReadFrequently: true});
   sctx.save();
-  if (facing === 'user') { sctx.translate(cols, 0); sctx.scale(-1, 1); }
-  sctx.drawImage(src, 0, 0, cols, rows);
+  if (facing === 'user') { sctx.translate(gc, 0); sctx.scale(-1, 1); }
+  sctx.drawImage(src, 0, 0, gc, gr);
   sctx.restore();
-  const data = sctx.getImageData(0, 0, cols, rows).data;
+  const data = sctx.getImageData(0, 0, gc, gr).data;
   adjust(data);
   const W = cols * m.cw, H = rows * m.ch;
   if (view.width !== W || view.height !== H) { view.width = W; view.height = H; fit(); }
   if (pal === 'ascii') {
     vctx.fillStyle = '#000';
     vctx.fillRect(0, 0, W, H);
-    vctx.font = m.ch + 'px monospace';
-    vctx.textAlign = 'center';
-    vctx.textBaseline = 'middle';
-    vctx.fillStyle = '#d8ffd8';
-    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-      const i = (y * cols + x) * 4;
-      const l = (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]) / 255;
-      const c = ASCII_RAMP[Math.round(l * (ASCII_RAMP.length - 1))];
-      if (c !== ' ') vctx.fillText(c, x * m.cw + m.cw / 2, y * m.ch + m.ch / 2);
+    const atlas = getAtlas(m);
+    const lum = (X, Y) => { const i = (Y * gc + X) * 4; return 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]; };
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+      let sum = 0, best = 0, gx = 0, gy = 0;
+      for (let sy = 0; sy < S; sy++) for (let sx = 0; sx < S; sx++) {
+        const X = cx * S + sx, Y = cy * S + sy;
+        sum += lum(X, Y);
+        if (X < 1 || Y < 1 || X > gc - 2 || Y > gr - 2) continue;
+        // Sobel gradient at this sample; keep the strongest in the cell
+        const ax = lum(X+1, Y-1) + 2 * lum(X+1, Y) + lum(X+1, Y+1) - lum(X-1, Y-1) - 2 * lum(X-1, Y) - lum(X-1, Y+1);
+        const ay = lum(X-1, Y+1) + 2 * lum(X, Y+1) + lum(X+1, Y+1) - lum(X-1, Y-1) - 2 * lum(X, Y-1) - lum(X+1, Y-1);
+        const mag = Math.hypot(ax, ay);
+        if (mag > best) { best = mag; gx = ax; gy = ay; }
+      }
+      let c;
+      if (best > EDGE_T) {
+        // A line runs across the gradient, so turn the gradient direction through 90 degrees
+        const th = (Math.atan2(gy, gx) + Math.PI / 2 + Math.PI * 2) % Math.PI;
+        c = EDGE_CHARS[Math.round(th / (Math.PI / 4)) % 4];
+      } else {
+        c = ASCII_RAMP[Math.round(sum / (S * S) / 255 * (ASCII_RAMP.length - 1))];
+      }
+      if (c !== ' ') vctx.drawImage(atlas, ASCII_ALL.indexOf(c) * m.cw, 0, m.cw, m.ch, cx * m.cw, cy * m.ch, m.cw, m.ch);
     }
   } else {
     // Dot matrix: darker areas get bigger dots of ink on cream paper
