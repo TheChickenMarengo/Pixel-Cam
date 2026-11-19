@@ -395,9 +395,9 @@ function toggleFreeze() {
 }
 
 // Draws one processed frame of the live camera (or the frozen photo) into the view
-function frame() {
+function drawFrame() {
   const live = cam.readyState >= 2 && cam.videoWidth;
-  const src = reviewVid || (frozen ? frozenFrame : live ? cam : null);
+  const src = reviewVid ? (reviewVid.readyState >= 2 ? reviewVid : null) : (frozen ? frozenFrame : live ? cam : null);
   if (src) {
     const sw = src.videoWidth || src.width;
     const sh = src.videoHeight || src.height;
@@ -425,6 +425,12 @@ function frame() {
     msg.style.display = 'none';
     resLabel.textContent = w + ' px wide';
   }
+}
+
+// The loop always schedules the next frame, so one failed frame can't stop the picture for good
+function frame() {
+  try { drawFrame(); }
+  catch (e) { document.getElementById('inst').textContent = 'Display error: ' + e.message; }
   requestAnimationFrame(frame);
 }
 
