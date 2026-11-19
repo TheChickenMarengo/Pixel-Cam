@@ -71,6 +71,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="nes" aria-pressed="false">NES</button>
     <button data-pal="c64" aria-pressed="false">C64</button>
     <button data-pal="zx" aria-pressed="false">ZX Spectrum</button>
+    <button data-pal="zxr" aria-pressed="false">ZX shuffle</button>
     <button data-pal="md" aria-pressed="false">Mega Drive</button>
     <button data-pal="sms" aria-pressed="false">Master System</button>
     <button data-pal="pocket" aria-pressed="false">GB Pocket</button>
@@ -395,7 +396,7 @@ function atkinson(d, w, h) {
 
 // ZX Spectrum: each 8x8 cell may use only two colours (ink and paper), and bright and normal colours cannot mix unless one is black
 function zxCompatible(a, b) { return a === 0 || b === 0 || (a >= 8) === (b >= 8); }
-function zxFx(d, w, h) {
+function zxFx(d, w, h, perm) {
   const list = PALETTES.zx.rgb;
   const counts = new Int32Array(list.length); // reused for every cell
   for (let cy = 0; cy < h; cy += 8) for (let cx = 0; cx < w; cx += 8) {
@@ -420,10 +421,36 @@ function zxFx(d, w, h) {
       const r = d[i] + o, g = d[i+1] + o, bl = d[i+2] + o;
       const dA = (r-A[0])**2 + (g-A[1])**2 + (bl-A[2])**2;
       const dB = (r-B[0])**2 + (g-B[1])**2 + (bl-B[2])**2;
-      const c = dA <= dB ? A : B;
+      // The pair is chosen from the real colours, then each colour is swapped through the shuffle (if any)
+      const pick = dA <= dB ? a : b;
+      const c = perm ? list[perm[pick]] : list[pick];
       d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
     }
   }
+}
+
+// ZX shuffle: a seeded random swap of the ZX colours (black stays black), so each picture can come out in new colours.
+// The seed only changes on a new photo or a tap on the button, so live colours stay steady.
+let zxSeed = (Math.random() * 4294967296) >>> 0;
+let zxPermSeed = -1, zxPermCache = null;
+function newZxSeed() { zxSeed = (Math.random() * 4294967296) >>> 0; }
+function mulberry32(a) {
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function zxPerm() {
+  if (zxPermSeed !== zxSeed) {
+    zxPermSeed = zxSeed;
+    const rnd = mulberry32(zxSeed), p = [];
+    for (let k = 0; k < 15; k++) p.push(k);
+    for (let i = 14; i > 1; i--) { const j = 1 + Math.floor(rnd() * i); [p[i], p[j]] = [p[j], p[i]]; }
+    zxPermCache = p;
+  }
+  return zxPermCache;
 }
 
 // Per-channel quantising for consoles that use RGB levels: Mega Drive (8 levels per channel), Master System (4 levels), with ordered dither
@@ -498,6 +525,7 @@ function toggleFreeze() {
   frozenFrame.getContext('2d').drawImage(cam, 0, 0);
   frozen = true;
   dirty = true;
+  if (pal === 'zxr') newZxSeed(); // each new photo gets its own colours
   frozenNow = performance.now();
   shootBtn.classList.add('frozen');
   shootBtn.title = 'Retake';
@@ -730,6 +758,7 @@ function drawFrame() {
     else if (pal === 'mono2') mono1(img.data, w, h);
     else if (pal === 'atkinson') atkinson(img.data, w, h);
     else if (pal === 'zx') zxFx(img.data, w, h);
+    else if (pal === 'zxr') zxFx(img.data, w, h, zxPerm());
     else if (pal === 'md') channelQuant(img.data, w, h, 8);
     else if (pal === 'sms') channelQuant(img.data, w, h, 4);
     else if (pal === 'vhs') vhs(img.data, w, h, frozen ? frozenNow : undefined);
@@ -789,6 +818,7 @@ async function startCamera() {
 
 document.querySelectorAll('#pals button').forEach(b => b.addEventListener('click', () => {
   pal = b.dataset.pal;
+  if (pal === 'zxr') newZxSeed(); // tapping the style again gives a new set of colours
   document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   persist();
 }));
