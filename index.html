@@ -257,18 +257,22 @@ let pal = SAVED.pal || 'gameboy', dither = SAVED.dither !== false, facing = SAVE
 let dirty = true; // a frozen photo is only reprocessed when this is set
 let filterName = (SAVED.filter in FILTERS) ? SAVED.filter : 'none';
 let filterLut = FILTERS[filterName];
-if (SAVED.res) res.value = SAVED.res;
+// The resolution slider works in pixels for most styles and in text columns for the ASCII styles.
+// Each mode remembers its own value.
+const ASCII_COLS = {min: 20, max: 120, step: 10, def: 120};
+const PX_RES = {min: 32, max: 768, step: 8, def: 160};
+let resIsAsc = null, pxRes = +SAVED.res || 160, ascCols = +SAVED.asc || 120;
 if (SAVED.con) document.getElementById('con').value = SAVED.con;
 if (SAVED.bri) document.getElementById('bri').value = SAVED.bri;
 if (SAVED.sat) document.getElementById('sat').value = SAVED.sat;
 // Show the restored values on the labels too
-resLabel.textContent = res.value + ' px wide';
 document.getElementById('conLabel').textContent = (+document.getElementById('con').value).toFixed(2);
 document.getElementById('briLabel').textContent = document.getElementById('bri').value;
 document.getElementById('satLabel').textContent = (+document.getElementById('sat').value).toFixed(2);
 function writeSettings() {
   try { localStorage.setItem('pixelcam', JSON.stringify({
-    pal, dither, facing, filter: filterName, res: res.value,
+    pal, dither, facing, filter: filterName,
+    res: resIsAsc ? pxRes : res.value, asc: resIsAsc ? res.value : ascCols,
     con: conEl.value, bri: briEl.value, sat: satEl.value, favs: [...favs]
   })); } catch (e) {}
 }
@@ -285,6 +289,21 @@ addEventListener('pagehide', () => { clearTimeout(persistTimer); writeSettings()
 if (![...document.querySelectorAll('#pals button')].some(b => b.dataset.pal === pal)) pal = 'gameboy';
 // Reflect the remembered palette on the buttons (they are static in the HTML)
 document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.pal === pal)));
+
+// Switch the resolution slider between pixels and columns when the style changes
+function setResMode() {
+  const a = pal === 'ascii' || pal === 'asciic';
+  if (a === resIsAsc) return;
+  if (resIsAsc === true) ascCols = +res.value; else if (resIsAsc === false) pxRes = +res.value;
+  resIsAsc = a;
+  const r = a ? ASCII_COLS : PX_RES;
+  res.min = r.min; res.max = r.max; res.step = r.step;
+  res.defaultValue = r.def; // double-tap reset goes back to this
+  res.value = a ? ascCols : pxRes;
+  resLabel.textContent = res.value + (a ? ' cols' : ' px wide');
+  document.getElementById('sizes').style.display = a ? 'none' : ''; // pixel presets don't apply to columns
+}
+setResMode();
 
 let stream = null, recorder = null, chunks = [];
 
@@ -1070,6 +1089,7 @@ document.querySelectorAll('#pals button').forEach(b => b.addEventListener('click
   pal = b.dataset.pal;
   if (pal === 'zxr') newZxSeed(); // tapping the style again gives a new set of colours
   document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  setResMode();
   persist();
 }));
 
@@ -1144,7 +1164,7 @@ ditherBtn.addEventListener('click', () => {
   persist();
 });
 
-res.addEventListener('input', () => { resLabel.textContent = res.value + ' px wide'; persist(); });
+res.addEventListener('input', () => { resLabel.textContent = res.value + (resIsAsc ? ' cols' : ' px wide'); persist(); });
 document.getElementById('con').addEventListener('input', e => {
   document.getElementById('conLabel').textContent = (+e.target.value).toFixed(2); persist();
 });
