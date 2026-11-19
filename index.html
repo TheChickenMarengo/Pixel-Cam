@@ -789,7 +789,9 @@ function drawFrame() {
     vctx.drawImage(src, 0, 0, w, h);
     vctx.restore();
     // Review clips are already processed when recorded, so they play back as filmed
-    if (!reviewVid) {
+    if (!reviewVid && gpuReady()) {
+      gpuFrame(w, h);
+    } else if (!reviewVid) {
     const img = vctx.getImageData(0, 0, w, h);
     adjust(img.data);
     if (pal === 'dos') diffuse(img.data, w, h);
@@ -811,6 +813,172 @@ function drawFrame() {
     msg.style.display = 'none';
     resLabel.textContent = w + ' px wide';
   }
+}
+
+// ---- GPU path: per-pixel styles run in a WebGL shader instead of reading the picture back into JavaScript ----
+// Covers Original, every ramp or nearest-colour palette of up to 64 colours, and the colour filters.
+// Diffusion, ZX, VHS, Atari ST, Apple II and blue noise stay on the CPU path.
+const GL_VS = 'attribute vec2 a; void main() { gl_Position = vec4(a, 0.0, 1.0); }';
+const GL_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D u_img;
+uniform sampler2D u_lut;
+uniform vec2 u_size;
+uniform float u_con, u_bri, u_sat;
+uniform int u_mode;        // 0 none, 1 ramp, 2 nearest colour
+uniform int u_n;
+uniform vec3 u_pal[64];    // 0-255 units
+uniform int u_bsize;       // dither matrix size, 4 or 8
+uniform float u_mat[64];   // centred dither offsets, row-major
+uniform int u_dither;
+uniform int u_hasLut;
+void main() {
+  vec3 lum3 = vec3(0.299, 0.587, 0.114);
+  float x = floor(gl_FragCoord.x);
+  float y = u_size.y - 1.0 - floor(gl_FragCoord.y); // row 0 is the top, as on the canvas
+  vec3 c = floor(texture2D(u_img, vec2((x + 0.5) / u_size.x, (y + 0.5) / u_size.y)).rgb * 255.0 + 0.5);
+  // Contrast, brightness, saturation, as adjust() does on the CPU
+  vec3 r = (c - 128.0) * u_con + 128.0 + u_bri;
+  float L = dot(r, lum3);
+  c = clamp(floor(L + (r - L) * u_sat + 0.5), 0.0, 255.0);
+  vec3 col = c / 255.0;
+  if (u_mode != 0) {
+    float bs = float(u_bsize);
+    int bi = int(mod(y, bs) * bs + mod(x, bs));
+    // Uniform arrays are read with loop indices only, which every GPU accepts
+    float t = 0.0;
+    for (int i = 0; i < 64; i++) { if (i == bi && u_dither == 1) t = u_mat[i]; }
+    vec3 pick;
+    if (u_mode == 1) {
+      float l = clamp((dot(c, lum3) / 255.0 - 0.5) * 1.15 + 0.5, 0.0, 1.0);
+      int k = int(clamp(floor(l * float(u_n - 1) + t + 0.5), 0.0, float(u_n - 1)));
+      pick = vec3(0.0);
+      for (int i = 0; i < 64; i++) { if (i == k) pick = u_pal[i]; }
+    } else {
+      vec3 q = c + t * 90.0;
+      float bd = 1e9;
+      pick = u_pal[0];
+      for (int i = 0; i < 64; i++) {
+        if (i >= u_n) break;
+        vec3 d = q - u_pal[i];
+        float dd = dot(d, d);
+        if (dd < bd) { bd = dd; pick = u_pal[i]; }
+      }
+    }
+    col = pick / 255.0;
+  }
+  if (u_hasLut == 1) {
+    float Lo = floor(dot(col * 255.0, lum3));
+    col = texture2D(u_lut, vec2((Lo + 0.5) / 256.0, 0.5)).rgb;
+  }
+  gl_FragColor = vec4(col, 1.0);
+}`;
+let gl = null, glProg = null, glCanvas = null, glTexImg = null, glTexLut = null;
+const glLoc = {};
+let glState = 'untried', glPalName = null, glBsize = 0, glLutSrc = null;
+const glPalBuf = new Float32Array(192), glMatBuf = new Float32Array(64);
+function glCompile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function glTexture() {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+function initGL() {
+  glCanvas = document.createElement('canvas');
+  gl = glCanvas.getContext('webgl', { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false });
+  if (!gl) return false;
+  // If the GPU drops the context, the CPU path takes over
+  glCanvas.addEventListener('webglcontextlost', e => { e.preventDefault(); glState = 'failed'; });
+  glProg = gl.createProgram();
+  gl.attachShader(glProg, glCompile(gl.VERTEX_SHADER, GL_VS));
+  gl.attachShader(glProg, glCompile(gl.FRAGMENT_SHADER, GL_FS));
+  gl.linkProgram(glProg);
+  if (!gl.getProgramParameter(glProg, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(glProg));
+  gl.useProgram(glProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const a = gl.getAttribLocation(glProg, 'a');
+  gl.enableVertexAttribArray(a);
+  gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+  for (const n of ['u_img', 'u_lut', 'u_size', 'u_con', 'u_bri', 'u_sat', 'u_mode', 'u_n', 'u_pal', 'u_bsize', 'u_mat', 'u_dither', 'u_hasLut']) {
+    glLoc[n] = gl.getUniformLocation(glProg, n);
+  }
+  gl.uniform1i(glLoc.u_img, 0);
+  gl.uniform1i(glLoc.u_lut, 1);
+  glTexImg = glTexture();
+  glTexLut = glTexture();
+  return true;
+}
+// Which GPU mode the current style uses: 0 Original, 1 ramp, 2 nearest colour, -1 CPU only
+function gpuMode() {
+  if (pal === 'original') return 0;
+  const P = PALETTES[pal];
+  if (!P || pal === 'dos' || pal === 'zx' || pal === 'zxr' || P.rgb.length > 64) return -1;
+  return P.mode === 'ramp' ? 1 : 2;
+}
+function gpuReady() {
+  if (glState === 'untried') {
+    try { glState = initGL() ? 'ok' : 'failed'; }
+    catch (e) { glState = 'failed'; document.getElementById('inst').textContent = 'GPU off: ' + e.message; }
+  }
+  return glState === 'ok' && gpuMode() >= 0;
+}
+// Draws the processed picture from the view canvas (already scaled and mirrored), then writes the result back
+function gpuFrame(w, h) {
+  if (glCanvas.width !== w || glCanvas.height !== h) { glCanvas.width = w; glCanvas.height = h; }
+  gl.viewport(0, 0, w, h);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, glTexImg);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, view);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, glTexLut);
+  if (filterLut && glLutSrc !== filterLut) {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 256, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, filterLut);
+    glLutSrc = filterLut;
+  }
+  const mode = gpuMode();
+  gl.uniform2f(glLoc.u_size, w, h);
+  gl.uniform1f(glLoc.u_con, +conEl.value);
+  gl.uniform1f(glLoc.u_bri, +briEl.value);
+  gl.uniform1f(glLoc.u_sat, +satEl.value);
+  gl.uniform1i(glLoc.u_mode, mode);
+  gl.uniform1i(glLoc.u_dither, dither ? 1 : 0);
+  gl.uniform1i(glLoc.u_hasLut, filterLut ? 1 : 0);
+  if (mode !== 0) {
+    const list = PALETTES[pal].rgb;
+    if (glPalName !== pal) {
+      for (let k = 0; k < list.length; k++) { glPalBuf[k*3] = list[k][0]; glPalBuf[k*3+1] = list[k][1]; glPalBuf[k*3+2] = list[k][2]; }
+      gl.uniform3fv(glLoc.u_pal, glPalBuf);
+      glPalName = pal;
+    }
+    gl.uniform1i(glLoc.u_n, list.length);
+    const bs = pal === 'mono' ? 8 : 4;
+    if (glBsize !== bs) {
+      // Same offsets as the CPU path: the 8x8 matrix for 1-bit, the 4x4 Bayer matrix otherwise
+      for (let y = 0; y < bs; y++) for (let x = 0; x < bs; x++) {
+        glMatBuf[y * bs + x] = bs === 8 ? B8[y * 8 + x] / 64 - 0.5 : BAYER[y * 4 + x] / 16 - 0.5;
+      }
+      gl.uniform1fv(glLoc.u_mat, glMatBuf);
+      gl.uniform1i(glLoc.u_bsize, bs);
+      glBsize = bs;
+    }
+  }
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  vctx.drawImage(glCanvas, 0, 0, w, h);
 }
 
 // The loop always schedules the next frame, so one failed frame can't stop the picture for good
