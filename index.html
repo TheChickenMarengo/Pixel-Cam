@@ -115,6 +115,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
+  <div class="row" id="aspect"><button data-aspect="original" aria-pressed="false">Original</button><button data-aspect="square" aria-pressed="false">1:1</button><button data-aspect="4x3" aria-pressed="false">4:3</button><button data-aspect="3x2" aria-pressed="false">3:2</button><button data-aspect="16x9" aria-pressed="false">16:9</button><button data-aspect="9x16" aria-pressed="false">9:16</button></div>
   <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
@@ -253,7 +254,17 @@ const ASCII_COLS = {min: 20, max: 120, step: 10, def: 120};
 const PX_RES = {min: 32, max: 768, step: 8, def: 160};
 let resIsAsc = null, pxRes = +SAVED.res || 160, ascCols = +SAVED.asc || 120;
 // Which characters the ASCII styles may use (set in getAtlas)
-let asciiSet = SAVED.charset || 'all';if (SAVED.con) document.getElementById('con').value = SAVED.con;
+let asciiSet = SAVED.charset || 'all';
+// Crop ratios for the picture. Original keeps the camera's own shape
+const ASPECTS = {original: null, square: 1, '4x3': 4 / 3, '3x2': 1.5, '16x9': 16 / 9, '9x16': 9 / 16};
+let aspectKey = (SAVED.aspect in ASPECTS) ? SAVED.aspect : 'original';
+// The part of the camera image to keep for the chosen ratio, centred
+function cropFor(sw, sh) {
+  const r = ASPECTS[aspectKey];
+  if (!r) return {sx: 0, sy: 0, cw: sw, ch: sh, ratio: sw / sh};
+  if (sw / sh > r) { const cw = sh * r; return {sx: (sw - cw) / 2, sy: 0, cw, ch: sh, ratio: r}; }
+  const ch = sw / r; return {sx: 0, sy: (sh - ch) / 2, cw: sw, ch, ratio: r};
+}if (SAVED.con) document.getElementById('con').value = SAVED.con;
 if (SAVED.bri) document.getElementById('bri').value = SAVED.bri;
 if (SAVED.sat) document.getElementById('sat').value = SAVED.sat;
 // Show the restored values on the labels too
@@ -264,7 +275,7 @@ function writeSettings() {
   try { localStorage.setItem('pixelcam', JSON.stringify({
     pal, dither, facing, filter: filterName,
     res: resIsAsc ? pxRes : res.value, asc: resIsAsc ? res.value : ascCols,
-    charset: asciiSet,
+    charset: asciiSet, aspect: aspectKey,
     con: conEl.value, bri: briEl.value, sat: satEl.value, favs: [...favs]
   })); } catch (e) {}
 }
@@ -661,7 +672,8 @@ function sized(cv, w, h) { if (cv.width !== w || cv.height !== h) { cv.width = w
 function cellFrame(src, sw, sh) {
   const m = CELL_MODES[pal];
   const cols = Math.min(+res.value, m.cap);
-  const rows = Math.max(1, Math.round(cols * sh / sw * m.cw / m.ch));
+  const crop = cropFor(sw, sh);
+  const rows = Math.max(1, Math.round(cols / crop.ratio * m.cw / m.ch));
   // One sample per character or dot
   const isAscii = pal === 'ascii' || pal === 'asciic';
   const S = 1;
@@ -670,7 +682,7 @@ function cellFrame(src, sw, sh) {
   const sctx = cellSrc.getContext('2d', {willReadFrequently: true});
   sctx.save();
   if (facing === 'user') { sctx.translate(gc, 0); sctx.scale(-1, 1); }
-  sctx.drawImage(src, 0, 0, gc, gr);
+  sctx.drawImage(src, crop.sx, crop.sy, crop.cw, crop.ch, 0, 0, gc, gr);
   sctx.restore();
   const data = sctx.getImageData(0, 0, gc, gr).data;
   adjust(data);
@@ -1005,8 +1017,10 @@ function drawFrame() {
   dirty = false;
   const cap = {atari: 160, apple: 280, md: 280, c64mc: 280}[pal];
   // A review clip is drawn at the size it was recorded, so it is not rescaled
+  // Review clips keep their recorded shape; live pictures and photos use the chosen ratio
+  const crop = reviewVid ? {sx: 0, sy: 0, cw: sw, ch: sh, ratio: sw / sh} : cropFor(sw, sh);
   const w = reviewVid ? sw : cap ? Math.min(+res.value, cap) : +res.value;
-  const h = Math.max(1, Math.round(w * sh / sw));
+  const h = Math.max(1, Math.round(w / crop.ratio));
   if (view.width !== w || view.height !== h) { view.width = w; view.height = h; fit(); }
   if (viaWorker) {
     // The picture is drawn into a scratch canvas, adjusted here, then styled in the worker
@@ -1016,7 +1030,7 @@ function drawFrame() {
     pctx.imageSmoothingQuality = 'high'; // same scaling as the view, so both paths start from the same pixels
     pctx.save();
     if (facing === 'user') { pctx.translate(w, 0); pctx.scale(-1, 1); }
-    pctx.drawImage(src, 0, 0, w, h);
+    pctx.drawImage(src, crop.sx, crop.sy, crop.cw, crop.ch, 0, 0, w, h);
     pctx.restore();
     const img = pctx.getImageData(0, 0, w, h);
     adjust(img.data);
@@ -1031,7 +1045,7 @@ function drawFrame() {
   vctx.imageSmoothingQuality = 'high';
   vctx.save();
   if (facing === 'user') { vctx.translate(w, 0); vctx.scale(-1, 1); }
-  vctx.drawImage(src, 0, 0, w, h);
+  vctx.drawImage(src, crop.sx, crop.sy, crop.cw, crop.ch, 0, 0, w, h);
   vctx.restore();
   // Review clips are already processed when recorded, so they play back as filmed
   if (onGpu) {
@@ -1306,6 +1320,16 @@ palRow.querySelectorAll('button').forEach(b => {
 // The tap that ends a long press should not also pick the style
 palRow.addEventListener('click', e => { if (suppressClick) { e.stopPropagation(); suppressClick = false; } }, true);
 
+// Crop ratio for the picture
+document.querySelectorAll('#aspect button').forEach(b => {
+  b.setAttribute('aria-pressed', String(b.dataset.aspect === aspectKey));
+  b.addEventListener('click', () => {
+    aspectKey = b.dataset.aspect;
+    document.querySelectorAll('#aspect button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    dirty = true; // a frozen picture is redrawn at the new ratio
+    persist();
+  });
+});
 // Character sets for the ASCII styles
 document.querySelectorAll('#charsets button').forEach(b => {
   b.setAttribute('aria-pressed', String(b.dataset.set === asciiSet));
