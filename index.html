@@ -573,22 +573,39 @@ function toggleFreeze() {
 // Draws one processed frame of the live camera (or the frozen photo) into the view
 // Cell looks (ASCII, dot matrix): one sample per character or dot, drawn at a fixed cell size
 const CELL_MODES = {ascii: {cap: 120, cw: 6, ch: 8}, asciic: {cap: 120, cw: 6, ch: 8}, dot: {cap: 160, cw: 6, ch: 6}};
-// Light to dark, as in the first ASCII version
-const ASCII_RAMP = ' .:-=+*#%@';
-const ASCII_ALL = ASCII_RAMP;
+// Candidate glyphs; they are sorted by how much ink each one draws, so brightness steps look even
+const ASCII_CANDIDATES = ' .\'`^",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
+let ASCII_RAMP = ASCII_CANDIDATES;
 let asciiAtlas = null;
 // Every glyph drawn once into one strip, so each cell is a fast image copy
 function getAtlas(m) {
   if (!asciiAtlas) {
+    const chars = [...ASCII_CANDIDATES];
+    const ink = chars.map(ch => {
+      const t = document.createElement('canvas');
+      t.width = m.cw; t.height = m.ch;
+      const tc = t.getContext('2d', {willReadFrequently: true});
+      tc.font = m.ch + 'px monospace';
+      tc.textAlign = 'center';
+      tc.textBaseline = 'middle';
+      tc.fillStyle = '#fff';
+      tc.fillText(ch, m.cw / 2, m.ch / 2);
+      const px = tc.getImageData(0, 0, m.cw, m.ch).data;
+      let s = 0;
+      for (let i = 3; i < px.length; i += 4) s += px[i];
+      return s;
+    });
+    const order = chars.map((_, i) => i).sort((a, b) => ink[a] - ink[b]);
+    ASCII_RAMP = order.map(i => chars[i]).join('');
     asciiAtlas = document.createElement('canvas');
-    asciiAtlas.width = m.cw * ASCII_ALL.length;
+    asciiAtlas.width = m.cw * ASCII_RAMP.length;
     asciiAtlas.height = m.ch;
     const a = asciiAtlas.getContext('2d');
     a.font = m.ch + 'px monospace';
     a.textAlign = 'center';
     a.textBaseline = 'middle';
     a.fillStyle = '#d8ffd8';
-    for (let i = 0; i < ASCII_ALL.length; i++) a.fillText(ASCII_ALL[i], i * m.cw + m.cw / 2, m.ch / 2);
+    for (let i = 0; i < ASCII_RAMP.length; i++) a.fillText(ASCII_RAMP[i], i * m.cw + m.cw / 2, m.ch / 2);
   }
   return asciiAtlas;
 }
