@@ -40,6 +40,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* Portrait: styles scroll sideways in one row */
 #pals,#filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
 #pals button,#filters button{flex:0 0 auto;white-space:nowrap}
+#pals button.fav::before{content:'★ ';color:#f5e800}
 /* Landscape: controls move to a side panel so the picture gets the full height */
 @media (orientation: landscape) and (max-height: 600px) {
   body{flex-direction:row}
@@ -117,6 +118,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="adjust">
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
+  <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
   <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
@@ -267,7 +269,7 @@ document.getElementById('satLabel').textContent = (+document.getElementById('sat
 function writeSettings() {
   try { localStorage.setItem('pixelcam', JSON.stringify({
     pal, dither, facing, filter: filterName, res: res.value,
-    con: conEl.value, bri: briEl.value, sat: satEl.value
+    con: conEl.value, bri: briEl.value, sat: satEl.value, favs: [...favs]
   })); } catch (e) {}
 }
 // Settings are written after a short pause, so dragging a slider doesn't write on every move
@@ -1032,6 +1034,57 @@ document.querySelectorAll('#pals button').forEach(b => b.addEventListener('click
   document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   persist();
 }));
+
+// Favourite styles: long-press a style to pin it to the front of the row
+const favs = new Set(SAVED.favs || []);
+function applyFavs() {
+  const row = document.getElementById('pals');
+  const btns = [...row.querySelectorAll('button')];
+  btns.forEach(b => b.classList.toggle('fav', favs.has(b.dataset.pal)));
+  btns.filter(b => favs.has(b.dataset.pal)).reverse().forEach(b => row.prepend(b));
+}
+applyFavs();
+let holdTimer = 0, suppressClick = false;
+const palRow = document.getElementById('pals');
+palRow.querySelectorAll('button').forEach(b => {
+  b.addEventListener('pointerdown', () => {
+    suppressClick = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      suppressClick = true;
+      if (favs.has(b.dataset.pal)) favs.delete(b.dataset.pal); else favs.add(b.dataset.pal);
+      applyFavs();
+      persist();
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, 500);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => clearTimeout(holdTimer)));
+});
+// The tap that ends a long press should not also pick the style
+palRow.addEventListener('click', e => { if (suppressClick) { e.stopPropagation(); suppressClick = false; } }, true);
+
+// Preset pixel widths for the resolution slider
+document.querySelectorAll('#sizes button').forEach(b => b.addEventListener('click', () => {
+  res.value = b.dataset.size;
+  res.dispatchEvent(new Event('input'));
+}));
+
+// Double-tap a slider to put it back to its default. Dragging does not count as a tap.
+[res, conEl, briEl, satEl].forEach(el => {
+  let startX = 0, startY = 0, lastTap = 0;
+  el.addEventListener('pointerdown', e => { startX = e.clientX; startY = e.clientY; });
+  el.addEventListener('pointerup', e => {
+    const still = Math.hypot(e.clientX - startX, e.clientY - startY) < 10;
+    const now = Date.now();
+    if (still && now - lastTap < 350) {
+      el.value = el.defaultValue;
+      el.dispatchEvent(new Event('input'));
+      lastTap = 0;
+    } else {
+      lastTap = still ? now : 0;
+    }
+  });
+});
 
 document.querySelectorAll('#filters button').forEach(b => {
   b.setAttribute('aria-pressed', String(b.dataset.filter === filterName));
