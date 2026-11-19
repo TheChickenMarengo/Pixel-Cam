@@ -100,6 +100,17 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-filter="alert" aria-pressed="false">Red alert</button>
     <button data-filter="knight" aria-pressed="false">Grey</button>
     <button data-filter="jungle" aria-pressed="false">Jungle</button>
+    <button data-filter="sunset" aria-pressed="false">Sunset</button>
+    <button data-filter="vaporwave" aria-pressed="false">Vaporwave</button>
+    <button data-filter="thermal" aria-pressed="false">Thermal</button>
+    <button data-filter="infrared" aria-pressed="false">Infrared</button>
+    <button data-filter="neon" aria-pressed="false">Neon night</button>
+    <button data-filter="sepia" aria-pressed="false">Sepia</button>
+    <button data-filter="ice" aria-pressed="false">Ice</button>
+    <button data-filter="toxic" aria-pressed="false">Toxic</button>
+    <button data-filter="blueprint" aria-pressed="false">Blueprint</button>
+    <button data-filter="riso" aria-pressed="false">Risograph</button>
+    <button data-filter="random" aria-pressed="false">Random</button>
   </div>
   <div class="row"><button id="adjBtn" aria-pressed="true">Adjust ▴</button></div>
   <div id="adjust">
@@ -193,8 +204,26 @@ const FILTERS = {
   ocean: gradientLut(['#000818', '#0a1c5c', '#1040b0', '#20b4e0', '#a0e8ff', '#ffffff']),
   alert: gradientLut(['#000000', '#5a0000', '#a01010', '#e02020', '#ff7040', '#ffe040', '#ffffff']),
   knight: gradientLut(['#000000', '#4a4a4a', '#9a9a9a', '#f2f2f2']),
-  jungle: gradientLut(['#001a10', '#0a5a1a', '#0a7a1a', '#40a020', '#60c040', '#a0e040', '#f0e050'])
+  jungle: gradientLut(['#001a10', '#0a5a1a', '#0a7a1a', '#40a020', '#60c040', '#a0e040', '#f0e050']),
+  sunset: gradientLut(['#2a0a4a', '#e0457b', '#ff8c2a', '#fff0b0']),
+  vaporwave: gradientLut(['#1a0838', '#8a2bb0', '#ff5fb4', '#5ff0ff']),
+  thermal: gradientLut(['#000000', '#4b0082', '#c8102e', '#ffd400', '#ffffff']),
+  infrared: gradientLut(['#000000', '#5a0a2a', '#c81e1e', '#ffb4c8', '#ffffff']),
+  neon: gradientLut(['#000000', '#008080', '#ff1493', '#ffffff']),
+  sepia: gradientLut(['#2b1a0e', '#7a5230', '#c9a87a', '#f6ecd8']),
+  ice: gradientLut(['#0a1a3a', '#4a8fd0', '#bfe6ff', '#ffffff']),
+  toxic: gradientLut(['#000000', '#0a3a0a', '#2ee02e', '#c8ff40']),
+  blueprint: gradientLut(['#0a2a6a', '#2a5aa8', '#7aa8e0', '#ffffff']),
+  riso: gradientLut(['#1a1a1a', '#2a7fff', '#ff48b0', '#f4efe6']),
+  random: null // set by randomGradientLut() each time the button is tapped
 };
+FILTERS.random = randomGradientLut();
+// Four random colours, sorted dark to light, so the gradient still reads from shadows to highlights
+function randomGradientLut() {
+  const stops = [0, 1, 2, 3].map(() => '#' + [0, 1, 2].map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join(''));
+  stops.sort((a, b) => { const p = hexRgb(a), q = hexRgb(b); return (0.299*p[0] + 0.587*p[1] + 0.114*p[2]) - (0.299*q[0] + 0.587*q[1] + 0.114*q[2]); });
+  return gradientLut(stops);
+}
 // Applies a filter in place, using each pixel's brightness
 function applyFilter(d, lut) {
   for (let i = 0; i < d.length; i += 4) {
@@ -826,6 +855,7 @@ document.querySelectorAll('#filters button').forEach(b => {
   b.setAttribute('aria-pressed', String(b.dataset.filter === filterName));
   b.addEventListener('click', () => {
     filterName = b.dataset.filter;
+    if (filterName === 'random') FILTERS.random = randomGradientLut(); // a new gradient each time it is tapped
     filterLut = FILTERS[filterName];
     document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     persist();
