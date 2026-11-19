@@ -71,6 +71,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="atkinson" aria-pressed="false">1-bit Atkinson</button>
     <button data-pal="nes" aria-pressed="false">NES</button>
     <button data-pal="c64" aria-pressed="false">C64</button>
+    <button data-pal="c64mc" aria-pressed="false">C64 Multicolour</button>
     <button data-pal="zx" aria-pressed="false">ZX Spectrum</button>
     <button data-pal="zxr" aria-pressed="false">ZX Spectrum-R</button>
     <button data-pal="md" aria-pressed="false">Mega Drive</button>
@@ -773,6 +774,39 @@ function megaDrive(d, w, h) {
   }
 }
 
+// C64 multicolour: each 4x8 cell has its own three colours from the C64 palette, plus one background colour shared by
+// the whole picture (the most common colour). Each pixel takes whichever of its cell's four colours is closest
+function c64Multi(d, w, h) {
+  const P = PALETTES.c64.rgb;
+  const n = w * h;
+  const idx = new Uint8Array(n);
+  const hist = new Uint32Array(P.length);
+  for (let p = 0; p < n; p++) {
+    const i = p * 4;
+    idx[p] = nearest(d[i], d[i+1], d[i+2], P);
+    hist[idx[p]]++;
+  }
+  let bg = 0;
+  for (let k = 1; k < P.length; k++) if (hist[k] > hist[bg]) bg = k;
+  for (let cy = 0; cy < h; cy += 8) for (let cx = 0; cx < w; cx += 4) {
+    const x1 = Math.min(w, cx + 4), y1 = Math.min(h, cy + 8);
+    hist.fill(0);
+    for (let y = cy; y < y1; y++) for (let x = cx; x < x1; x++) hist[idx[y * w + x]]++;
+    const cols = [bg, ...[...hist.keys()].filter(k => k !== bg && hist[k] > 0).sort((a, b) => hist[b] - hist[a]).slice(0, 3)];
+    for (let y = cy; y < y1; y++) for (let x = cx; x < x1; x++) {
+      const i = (y * w + x) * 4;
+      let best = cols[0], bd = Infinity;
+      for (const k of cols) {
+        const c = P[k];
+        const dd = (d[i] - c[0]) ** 2 + (d[i+1] - c[1]) ** 2 + (d[i+2] - c[2]) ** 2;
+        if (dd < bd) { bd = dd; best = k; }
+      }
+      const c = P[best];
+      d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
+    }
+  }
+}
+
 // Amstrad CPC: 27 colours (3 levels per channel), but Mode 1 shows only 4 at a time. The 4 most common colours in the
 // picture are used, re-chosen every 15 frames, with no dither
 const CPC_LEVELS = [0, 128, 255];
@@ -881,7 +915,7 @@ function drawFrame() {
     const sw = src.videoWidth || src.width;
     const sh = src.videoHeight || src.height;
     if (!reviewVid && CELL_MODES[pal]) { cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
-    const cap = {atari: 160, apple: 280, md: 280}[pal];
+    const cap = {atari: 160, apple: 280, md: 280, c64mc: 280}[pal];
   // A review clip is drawn at the size it was recorded, so it is not rescaled
   const w = reviewVid ? sw : cap ? Math.min(+res.value, cap) : +res.value;
     const h = Math.max(1, Math.round(w * sh / sw));
@@ -909,6 +943,7 @@ function drawFrame() {
     else if (pal === 'st') atariST(img.data, w, h);
     else if (pal === 'apple') appleHires(img.data, w, h);
     else if (pal === 'bluen') blueNoise(img.data, w, h);
+    else if (pal === 'c64mc') c64Multi(img.data, w, h);
     else if (pal === 'cpc') cpcMode1(img.data, w, h);
     else if (pal !== 'original') quantise(img.data, w, h);
     if (filterLut) applyFilter(img.data, filterLut);
