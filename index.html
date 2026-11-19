@@ -82,7 +82,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="amiga" aria-pressed="false">Amiga 500</button>
     <button data-pal="cpc" aria-pressed="false">Amstrad CPC</button>
     <button data-pal="atari" aria-pressed="false">Atari 2600</button>
-    <button data-pal="ega" aria-pressed="false">EGA</button>
     <button data-pal="vb" aria-pressed="false">Virtual Boy</button>
     <button data-pal="nokia" aria-pressed="false">Nokia 3310</button>
     <button data-pal="green" aria-pressed="false">Green screen</button>
@@ -98,17 +97,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-filter="none" aria-pressed="true">No filter</button>
     <button data-filter="spectrum" aria-pressed="false">Spectrum</button>
     <button data-filter="predator" aria-pressed="false">Predator</button>
-    <button data-filter="ocean" aria-pressed="false">Ocean</button>
     <button data-filter="alert" aria-pressed="false">Red alert</button>
     <button data-filter="knight" aria-pressed="false">Grey</button>
-    <button data-filter="jungle" aria-pressed="false">Jungle</button>
     <button data-filter="sunset" aria-pressed="false">Sunset</button>
     <button data-filter="vaporwave" aria-pressed="false">Vaporwave</button>
     <button data-filter="infrared" aria-pressed="false">Infrared</button>
     <button data-filter="neon" aria-pressed="false">Neon night</button>
     <button data-filter="sepia" aria-pressed="false">Sepia</button>
-    <button data-filter="ice" aria-pressed="false">Ice</button>
-    <button data-filter="toxic" aria-pressed="false">Toxic</button>
     <button data-filter="blueprint" aria-pressed="false">Blueprint</button>
     <button data-filter="riso" aria-pressed="false">Risograph</button>
     <button data-filter="nightvision" aria-pressed="false">Night vision</button>
@@ -178,7 +173,6 @@ const PALETTES = {
   // Atari 2600: a 128-colour TIA palette, and the picture is limited to 160 px wide in drawFrame
   atari: {mode:'nearest', colours:atariColours()},
   // EGA: the 64-colour palette (2 bits per channel), unlike the 16-colour DOS set
-  ega: {mode:'nearest', colours:grid([0,85,170,255])},
   // Virtual Boy: four shades of red LED
   vb: {mode:'ramp', colours:['#000000','#4a0000','#a00000','#ff1a1a']},
   // Nokia 3310: four greys on the pale green LCD
@@ -204,18 +198,14 @@ function gradientLut(stops) {
 const FILTERS = {
   none: null,
   spectrum: gradientLut(['#000000', '#c020a0', '#20c8d8', '#f5e800']),
-  ocean: gradientLut(['#000818', '#0a1c5c', '#1040b0', '#20b4e0', '#a0e8ff', '#ffffff']),
   alert: gradientLut(['#000000', '#5a0000', '#a01010', '#e02020', '#ff7040', '#ffe040', '#ffffff']),
   knight: gradientLut(['#000000', '#4a4a4a', '#9a9a9a', '#f2f2f2']),
-  jungle: gradientLut(['#001a10', '#0a5a1a', '#0a7a1a', '#40a020', '#60c040', '#a0e040', '#f0e050']),
   sunset: gradientLut(['#2a0a4a', '#e0457b', '#ff8c2a', '#fff0b0']),
   vaporwave: gradientLut(['#1a0838', '#8a2bb0', '#ff5fb4', '#5ff0ff', '#00d8f0', '#b8f8ff']),
   predator: gradientLut(['#06123a', '#1c5fc8', '#3ac0f0', '#48d060', '#f0e040', '#f07a20', '#e02424']),
   infrared: gradientLut(['#000000', '#5a0a2a', '#c81e1e', '#ffb4c8', '#ffffff']),
   neon: gradientLut(['#000000', '#008080', '#ff1493', '#ffffff']),
   sepia: gradientLut(['#2b1a0e', '#7a5230', '#c9a87a', '#f6ecd8']),
-  ice: gradientLut(['#0a1a3a', '#4a8fd0', '#bfe6ff', '#ffffff']),
-  toxic: gradientLut(['#000000', '#0a3a0a', '#2ee02e', '#c8ff40']),
   blueprint: gradientLut(['#0a2a6a', '#2a5aa8', '#7aa8e0', '#ffffff']),
   riso: gradientLut(['#1a1a1a', '#2a7fff', '#ff48b0', '#f4efe6']),
   nightvision: gradientLut(['#000000', '#03260a', '#1a7a24', '#57ff5a', '#e8ffe8']),
@@ -511,7 +501,7 @@ function zxPerm() {
   return zxPermCache;
 }
 
-// Per-channel quantising for consoles that use RGB levels: Mega Drive (8 levels per channel), Master System (4 levels), with ordered dither
+// Per-channel quantising for the Master System (4 levels per channel), with ordered dither
 function channelQuant(d, w, h, levels) {
   const step = 255 / (levels - 1);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -754,6 +744,33 @@ function atariST(d, w, h) {
   }
 }
 
+// Mega Drive: 512 colours (3 bits per channel), up to 61 on screen. The 61 most common colours in the picture are used,
+// re-chosen every 15 frames, with ordered dither between them
+let mdPal = null, mdTick = 0;
+function megaDrive(d, w, h) {
+  if (!mdPal || mdTick++ % 15 === 0) {
+    const hist = new Uint32Array(512);
+    for (let i = 0; i < d.length; i += 4) hist[(q3(d[i]) << 6) | (q3(d[i+1]) << 3) | q3(d[i+2])]++;
+    const top = [];
+    for (let k = 0; k < 512; k++) if (hist[k]) top.push(k);
+    top.sort((a, b) => hist[b] - hist[a]);
+    mdPal = top.slice(0, 61).map(k => [ST_LEVEL(k >> 6), ST_LEVEL((k >> 3) & 7), ST_LEVEL(k & 7)]);
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    const t = dither ? BAYER[((y&3)<<2) | (x&3)] / 16 - 0.5 : 0;
+    const r = d[i] + t * 36, g = d[i+1] + t * 36, b = d[i+2] + t * 36;
+    let best = 0, bd = Infinity;
+    for (let p = 0; p < mdPal.length; p++) {
+      const c = mdPal[p];
+      const dd = (r - c[0]) ** 2 + (g - c[1]) ** 2 + (b - c[2]) ** 2;
+      if (dd < bd) { bd = dd; best = p; }
+    }
+    const c = mdPal[best];
+    d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
+  }
+}
+
 // Apple II hi-res: each 7-pixel block uses one of two colour sets, and a lit pixel next to another lit pixel turns white
 const APPLE_VIOLET = [255, 68, 253], APPLE_GREEN = [20, 245, 60], APPLE_BLUE = [20, 207, 253], APPLE_ORANGE = [255, 106, 60];
 const APPLE_PAIR_A = [APPLE_VIOLET, APPLE_GREEN], APPLE_PAIR_B = [APPLE_BLUE, APPLE_ORANGE];
@@ -838,7 +855,7 @@ function drawFrame() {
     const sw = src.videoWidth || src.width;
     const sh = src.videoHeight || src.height;
     if (!reviewVid && CELL_MODES[pal]) { cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
-    const cap = {atari: 160, apple: 280}[pal];
+    const cap = {atari: 160, apple: 280, md: 280}[pal];
   // A review clip is drawn at the size it was recorded, so it is not rescaled
   const w = reviewVid ? sw : cap ? Math.min(+res.value, cap) : +res.value;
     const h = Math.max(1, Math.round(w * sh / sw));
@@ -860,7 +877,7 @@ function drawFrame() {
     else if (pal === 'atkinson') atkinson(img.data, w, h);
     else if (pal === 'zx') zxFx(img.data, w, h);
     else if (pal === 'zxr') zxFx(img.data, w, h, zxPerm());
-    else if (pal === 'md') channelQuant(img.data, w, h, 8);
+    else if (pal === 'md') megaDrive(img.data, w, h);
     else if (pal === 'sms') channelQuant(img.data, w, h, 4);
     else if (pal === 'vhs') vhs(img.data, w, h, frozen ? frozenNow : undefined);
     else if (pal === 'st') atariST(img.data, w, h);
