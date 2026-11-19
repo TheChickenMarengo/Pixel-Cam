@@ -115,6 +115,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
+  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button></div>
+  <div class="row" id="shape"><button data-shape="square" aria-pressed="false">Square</button><button data-shape="tall" aria-pressed="false">Tall</button><button data-shape="wide" aria-pressed="false">Wide</button></div>
   <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
@@ -252,6 +254,11 @@ let filterLut = FILTERS[filterName];
 const ASCII_COLS = {min: 20, max: 120, step: 10, def: 120};
 const PX_RES = {min: 32, max: 768, step: 8, def: 160};
 let resIsAsc = null, pxRes = +SAVED.res || 160, ascCols = +SAVED.asc || 120;
+// Which characters the ASCII styles may use (set in getAtlas)
+let asciiSet = SAVED.charset || 'all';
+// Display-only shape: stretches the picture vertically. The export always uses square pixels
+const SHAPE_SCALE = {square: 1, tall: 1.2, wide: 0.83};
+let pixelShape = SHAPE_SCALE[SAVED.shape] ? SAVED.shape : 'square';
 if (SAVED.con) document.getElementById('con').value = SAVED.con;
 if (SAVED.bri) document.getElementById('bri').value = SAVED.bri;
 if (SAVED.sat) document.getElementById('sat').value = SAVED.sat;
@@ -263,6 +270,7 @@ function writeSettings() {
   try { localStorage.setItem('pixelcam', JSON.stringify({
     pal, dither, facing, filter: filterName,
     res: resIsAsc ? pxRes : res.value, asc: resIsAsc ? res.value : ascCols,
+    charset: asciiSet, shape: pixelShape,
     con: conEl.value, bri: briEl.value, sat: satEl.value, favs: [...favs]
   })); } catch (e) {}
 }
@@ -292,6 +300,7 @@ function setResMode() {
   res.value = a ? ascCols : pxRes;
   resLabel.textContent = res.value + (a ? ' cols' : ' px wide');
   document.getElementById('sizes').style.display = a ? 'none' : ''; // pixel presets don't apply to columns
+  document.getElementById('charsets').style.display = a ? '' : 'none'; // character sets only apply to the ASCII styles
 }
 setResMode();
 
@@ -555,10 +564,11 @@ function vhs(d, w, h, at) {
 function fit() {
   if (!view.width) return;
   const sw = stage.clientWidth - 24, sh = stage.clientHeight - 24;
-  let s = Math.min(sw / view.width, sh / view.height);
+  const k = SHAPE_SCALE[pixelShape];
+  let s = Math.min(sw / view.width, sh / (view.height * k));
   if (s >= 1) s = Math.floor(s);
   view.style.width = (view.width * s) + 'px';
-  view.style.height = (view.height * s) + 'px';
+  view.style.height = (view.height * s * k) + 'px';
 }
 
 // Shutter freezes the current frame so it can be edited; press again to return to live
@@ -588,12 +598,19 @@ function toggleFreeze() {
 const CELL_MODES = {ascii: {cap: 120, cw: 6, ch: 8}, asciic: {cap: 120, cw: 6, ch: 8}, dot: {cap: 160, cw: 6, ch: 6}};
 // Candidate glyphs; they are sorted by how much ink each one draws, so brightness steps look even
 const ASCII_CANDIDATES = ' .\'`^",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
+// Character sets the ASCII styles can use. Each one includes a space for empty areas
+const ASCII_SETS = {
+  all: ASCII_CANDIDATES,
+  simple: ' .:-=+*#%@',
+  letters: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  symbols: ' .,:;\'"`-_~+=*^!?|/\\<>()[]{}#%&$@',
+};
 let ASCII_RAMP = ASCII_CANDIDATES;
 let asciiAtlas = null, asciiOut = null, asciiLut = null, asciiCands = null, asciiAlpha = null, asciiBuf = null;
 // Every glyph drawn once into one strip, so each cell is a fast image copy
 function getAtlas(m) {
   if (!asciiAtlas) {
-    const chars = [...ASCII_CANDIDATES];
+    const chars = [...(ASCII_SETS[asciiSet] || ASCII_CANDIDATES)];
     const ink = chars.map(ch => {
       const t = document.createElement('canvas');
       t.width = m.cw; t.height = m.ch;
@@ -920,31 +937,113 @@ function blueNoise(d, w, h) {
   }
 }
 
+// Background processing for the per-pixel styles. The worker gets its own copies of the style functions and palettes
+let procWorker = null, procBusy = false, procFrozen = false;
+const procCv = document.createElement('canvas');
+function buildWorkerSource() {
+  const palettes = {};
+  for (const k in PALETTES) if (PALETTES[k] && PALETTES[k].rgb) palettes[k] = { mode: PALETTES[k].mode, rgb: PALETTES[k].rgb };
+  const fns = [quantise, nearest, nearestCached, diffuse, lumaBuf, mono1, atkinson, channelQuant, vhsRand, vhs, atariST, megaDrive, cpcMode1, c64Multi, appleHires, blueNoise, applyFilter];
+  return `
+let dither = true, pal = 'gameboy', LUTS = {}, bufCache = null, vhsCopy = null;
+let stPal = null, stTick = 0, mdPal = null, mdTick = 0, cpcPal = null, cpcTick = 0;
+const BAYER = ${JSON.stringify(BAYER)}, B8 = ${JSON.stringify(B8)}, BLUE = ${JSON.stringify(Array.from(BLUE))};
+const PALETTES = ${JSON.stringify(palettes)};
+const ST_LEVEL = k => Math.round(k * 255 / 7);
+const q3 = v => Math.min(7, Math.round(v * 7 / 255));
+const CPC_LEVELS = [0, 128, 255];
+const APPLE_VIOLET = ${JSON.stringify(APPLE_VIOLET)}, APPLE_GREEN = ${JSON.stringify(APPLE_GREEN)}, APPLE_BLUE = ${JSON.stringify(APPLE_BLUE)}, APPLE_ORANGE = ${JSON.stringify(APPLE_ORANGE)};
+const APPLE_PAIR_A = [APPLE_VIOLET, APPLE_GREEN], APPLE_PAIR_B = [APPLE_BLUE, APPLE_ORANGE];
+const APPLE_BLACK = [0, 0, 0], APPLE_WHITE = [255, 255, 255];
+${fns.map(f => f.toString()).join('\n')}
+self.onmessage = (e) => {
+  const m = e.data;
+  dither = m.dither; pal = m.pal;
+  const w = m.w, h = m.h, d = new Uint8ClampedArray(m.buf);
+  if (pal === 'dos') diffuse(d, w, h);
+  else if (pal === 'mono2') mono1(d, w, h);
+  else if (pal === 'atkinson') atkinson(d, w, h);
+  else if (pal === 'md') megaDrive(d, w, h);
+  else if (pal === 'sms') channelQuant(d, w, h, 4);
+  else if (pal === 'vhs') vhs(d, w, h, m.at);
+  else if (pal === 'st') atariST(d, w, h);
+  else if (pal === 'apple') appleHires(d, w, h);
+  else if (pal === 'bluen') blueNoise(d, w, h);
+  else if (pal === 'c64mc') c64Multi(d, w, h);
+  else if (pal === 'cpc') cpcMode1(d, w, h);
+  else if (pal !== 'original') quantise(d, w, h);
+  if (m.lut) applyFilter(d, m.lut);
+  self.postMessage({ buf: d.buffer, w, h, pal }, [d.buffer]);
+};`;
+}
+function startWorker() {
+  try {
+    const url = URL.createObjectURL(new Blob([buildWorkerSource()], { type: 'text/javascript' }));
+    procWorker = new Worker(url);
+    procWorker.onmessage = (e) => {
+      const m = e.data;
+      procBusy = false;
+      // Drop a result that no longer matches the screen, and redraw in its place
+      if (m.w !== view.width || m.h !== view.height || m.pal !== pal || procFrozen !== frozen) { dirty = true; return; }
+      vctx.putImageData(new ImageData(new Uint8ClampedArray(m.buf), m.w, m.h), 0, 0);
+    };
+    procWorker.onerror = () => { // fall back to processing on the main thread
+      if (procWorker) procWorker.terminate();
+      procWorker = null; procBusy = false; dirty = true;
+    };
+  } catch (e) { procWorker = null; }
+}
+startWorker();
+
 function drawFrame() {
   const live = cam.readyState >= 2 && cam.videoWidth;
   const src = reviewVid ? (reviewVid.readyState >= 2 ? reviewVid : null) : (frozen ? frozenFrame : live ? cam : null);
   // A frozen photo only changes when a setting does, so it is not reprocessed on every frame
   if (src && frozen && !reviewVid && !dirty) return;
+  if (!src) return;
+  const sw = src.videoWidth || src.width;
+  const sh = src.videoHeight || src.height;
+  if (!reviewVid && CELL_MODES[pal]) { dirty = false; cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
+  const onGpu = !reviewVid && gpuReady();
+  // Styles that run on the CPU go to the worker, unless the worker is unavailable (zx styles stay on the main thread)
+  const viaWorker = !reviewVid && !onGpu && !!procWorker && pal !== 'zx' && pal !== 'zxr';
+  // Still busy with the last picture: keep showing it until the new one arrives
+  if (viaWorker && procBusy) return;
   dirty = false;
-  if (src) {
-    const sw = src.videoWidth || src.width;
-    const sh = src.videoHeight || src.height;
-    if (!reviewVid && CELL_MODES[pal]) { cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
-    const cap = {atari: 160, apple: 280, md: 280, c64mc: 280}[pal];
+  const cap = {atari: 160, apple: 280, md: 280, c64mc: 280}[pal];
   // A review clip is drawn at the size it was recorded, so it is not rescaled
   const w = reviewVid ? sw : cap ? Math.min(+res.value, cap) : +res.value;
-    const h = Math.max(1, Math.round(w * sh / sw));
-    if (view.width !== w || view.height !== h) { view.width = w; view.height = h; fit(); }
-    vctx.imageSmoothingEnabled = true;
-    vctx.imageSmoothingQuality = 'high';
-    vctx.save();
-    if (facing === 'user') { vctx.translate(w, 0); vctx.scale(-1, 1); }
-    vctx.drawImage(src, 0, 0, w, h);
-    vctx.restore();
-    // Review clips are already processed when recorded, so they play back as filmed
-    if (!reviewVid && gpuReady()) {
-      gpuFrame(w, h);
-    } else if (!reviewVid) {
+  const h = Math.max(1, Math.round(w * sh / sw));
+  if (view.width !== w || view.height !== h) { view.width = w; view.height = h; fit(); }
+  if (viaWorker) {
+    // The picture is drawn into a scratch canvas, adjusted here, then styled in the worker
+    sized(procCv, w, h);
+    const pctx = procCv.getContext('2d', {willReadFrequently: true});
+    pctx.imageSmoothingEnabled = true;
+    pctx.imageSmoothingQuality = 'high'; // same scaling as the view, so both paths start from the same pixels
+    pctx.save();
+    if (facing === 'user') { pctx.translate(w, 0); pctx.scale(-1, 1); }
+    pctx.drawImage(src, 0, 0, w, h);
+    pctx.restore();
+    const img = pctx.getImageData(0, 0, w, h);
+    adjust(img.data);
+    procBusy = true; procFrozen = frozen;
+    procWorker.postMessage({ buf: img.data.buffer, w, h, pal, dither, lut: filterLut || null,
+      at: frozen ? frozenNow : undefined }, [img.data.buffer]);
+    view.style.display = 'block'; msg.style.display = 'none';
+    resLabel.textContent = w + ' px wide';
+    return;
+  }
+  vctx.imageSmoothingEnabled = true;
+  vctx.imageSmoothingQuality = 'high';
+  vctx.save();
+  if (facing === 'user') { vctx.translate(w, 0); vctx.scale(-1, 1); }
+  vctx.drawImage(src, 0, 0, w, h);
+  vctx.restore();
+  // Review clips are already processed when recorded, so they play back as filmed
+  if (onGpu) {
+    gpuFrame(w, h);
+  } else if (!reviewVid) {
     const img = vctx.getImageData(0, 0, w, h);
     adjust(img.data);
     if (pal === 'dos') diffuse(img.data, w, h);
@@ -963,11 +1062,10 @@ function drawFrame() {
     else if (pal !== 'original') quantise(img.data, w, h);
     if (filterLut) applyFilter(img.data, filterLut);
     vctx.putImageData(img, 0, 0);
-    }
-    view.style.display = 'block';
-    msg.style.display = 'none';
-    resLabel.textContent = w + ' px wide';
   }
+  view.style.display = 'block';
+  msg.style.display = 'none';
+  resLabel.textContent = w + ' px wide';
 }
 
 // ---- GPU path: per-pixel styles run in a WebGL shader instead of reading the picture back into JavaScript ----
@@ -1214,6 +1312,28 @@ palRow.querySelectorAll('button').forEach(b => {
 });
 // The tap that ends a long press should not also pick the style
 palRow.addEventListener('click', e => { if (suppressClick) { e.stopPropagation(); suppressClick = false; } }, true);
+
+// Character sets for the ASCII styles
+document.querySelectorAll('#charsets button').forEach(b => {
+  b.setAttribute('aria-pressed', String(b.dataset.set === asciiSet));
+  b.addEventListener('click', () => {
+    asciiSet = b.dataset.set;
+    asciiAtlas = null; // rebuilt with the new characters on the next frame
+    document.querySelectorAll('#charsets button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    dirty = true; // a frozen picture is redrawn with the new characters
+    persist();
+  });
+});
+// Display shape: square, tall or wide pixels
+document.querySelectorAll('#shape button').forEach(b => {
+  b.setAttribute('aria-pressed', String(b.dataset.shape === pixelShape));
+  b.addEventListener('click', () => {
+    pixelShape = b.dataset.shape;
+    document.querySelectorAll('#shape button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    fit();
+    persist();
+  });
+});
 
 // Preset pixel widths for the resolution slider
 document.querySelectorAll('#sizes button').forEach(b => b.addEventListener('click', () => {
