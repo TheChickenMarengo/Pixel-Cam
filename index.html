@@ -347,11 +347,11 @@ function vhsRand(x, y, t) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 let vhsCopy = null;
-function vhs(d, w, h) {
+function vhs(d, w, h, at) {
   if (!vhsCopy || vhsCopy.length !== d.length) vhsCopy = new Uint8ClampedArray(d.length);
   const src = vhsCopy;
   src.set(d);
-  const now = performance.now();
+  const now = at !== undefined ? at : performance.now();
   const tick = Math.floor(now / 120);
   const band = Math.floor(now / 70) % (h + 6) - 6;
   for (let y = 0; y < h; y++) {
@@ -383,7 +383,7 @@ function fit() {
 }
 
 // Shutter freezes the current frame so it can be edited; press again to return to live
-let frozen = false, frozenFrame = null;
+let frozen = false, frozenFrame = null, frozenNow = 0;
 function toggleFreeze() {
   if (reviewVid) return;
   if (frozen) {
@@ -397,6 +397,7 @@ function toggleFreeze() {
   frozenFrame.width = cam.videoWidth; frozenFrame.height = cam.videoHeight;
   frozenFrame.getContext('2d').drawImage(cam, 0, 0);
   frozen = true;
+  frozenNow = performance.now();
   shootBtn.classList.add('frozen');
   shootBtn.title = 'Retake';
   flashNow();
@@ -418,6 +419,8 @@ function drawFrame() {
     if (facing === 'user') { vctx.translate(w, 0); vctx.scale(-1, 1); }
     vctx.drawImage(src, 0, 0, w, h);
     vctx.restore();
+    // Review clips are already processed when recorded, so they play back as filmed
+    if (!reviewVid) {
     const img = vctx.getImageData(0, 0, w, h);
     adjust(img.data);
     if (pal === 'dos') diffuse(img.data, w, h);
@@ -426,9 +429,10 @@ function drawFrame() {
     else if (pal === 'zx') zxFx(img.data, w, h);
     else if (pal === 'md') channelQuant(img.data, w, h, 8);
     else if (pal === 'sms') channelQuant(img.data, w, h, 4);
-    else if (pal === 'vhs') vhs(img.data, w, h);
+    else if (pal === 'vhs') vhs(img.data, w, h, frozen ? frozenNow : undefined);
     else if (pal !== 'original') quantise(img.data, w, h);
     vctx.putImageData(img, 0, 0);
+    }
     view.style.display = 'block';
     msg.style.display = 'none';
     resLabel.textContent = w + ' px wide';
