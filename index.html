@@ -589,7 +589,7 @@ const CELL_MODES = {ascii: {cap: 120, cw: 6, ch: 8}, asciic: {cap: 120, cw: 6, c
 // Candidate glyphs; they are sorted by how much ink each one draws, so brightness steps look even
 const ASCII_CANDIDATES = ' .\'`^",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
 let ASCII_RAMP = ASCII_CANDIDATES;
-let asciiAtlas = null, asciiOut = null, asciiLut = null, asciiAlpha = null, asciiBuf = null;
+let asciiAtlas = null, asciiOut = null, asciiLut = null, asciiCands = null, asciiAlpha = null, asciiBuf = null;
 // Every glyph drawn once into one strip, so each cell is a fast image copy
 function getAtlas(m) {
   if (!asciiAtlas) {
@@ -619,6 +619,11 @@ function getAtlas(m) {
       while (g < asciiOut.length - 1 && Math.abs(asciiOut[g + 1] - v) <= Math.abs(asciiOut[g] - v)) g++;
       asciiLut[v] = g;
     }
+    // The six glyphs closest in brightness to each level. Bright areas have several dense glyphs with near-identical
+    // brightness, so cells pick among them to avoid one repeated character
+    const byDistance = v => [...asciiOut.keys()].sort((a, b) => Math.abs(asciiOut[a] - v) - Math.abs(asciiOut[b] - v));
+    asciiCands = [];
+    for (let v = 0; v < 256; v++) asciiCands.push(Uint8Array.from(byDistance(v).slice(0, 6)));
     asciiAtlas = document.createElement('canvas');
     asciiAtlas.width = m.cw * ASCII_RAMP.length;
     asciiAtlas.height = m.ch;
@@ -687,7 +692,9 @@ function cellFrame(src, sw, sh) {
     for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
       // Colour mode: the glyph must make up the source brightness out of the cell colour's actual brightness
       const target = colour ? lum(cx, cy) / Math.max(1, bl[cy * cols + cx]) * 235 : lum(cx, cy);
-      const glyph = asciiLut[Math.min(255, Math.round(target))];
+      // Choose among the glyphs for this brightness by a fixed per-cell hash: varied, but steady from frame to frame
+      const cands = asciiCands[Math.min(255, Math.round(target))];
+      const glyph = cands[(((cx * 73856093) ^ (cy * 19349663)) >>> 0) % cands.length];
       if (ASCII_RAMP[glyph] === ' ') continue;
       const A = asciiAlpha[glyph];
       // Mono: the glyph colour #d8ffd8. Colour: the cell's own colour
