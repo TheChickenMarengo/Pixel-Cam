@@ -93,6 +93,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="dot" aria-pressed="false">Dot matrix</button>
     <button data-pal="zzt" aria-pressed="false">ZZT</button>
     <button data-pal="zztw" aria-pressed="false">ZZT Wide</button>
+    <button data-pal="zzr" aria-pressed="false">ZZT-R</button>
+    <button data-pal="zztwr" aria-pressed="false">ZZT Wide-R</button>
     <button data-pal="st" aria-pressed="false">Atari ST</button>
     <button data-pal="lynx" aria-pressed="false">Atari Lynx</button>
     <button data-pal="apple" aria-pressed="false">Apple II</button>
@@ -299,7 +301,7 @@ document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pres
 
 // Switch the resolution slider between pixels and columns when the style changes
 function setResMode() {
-  const a = pal === 'ascii' || pal === 'asciic' || pal === 'zzt' || pal === 'zztw';
+  const a = pal === 'ascii' || pal === 'asciic' || isZzt(pal);
   if (a === resIsAsc) return;
   if (resIsAsc === true) ascCols = +res.value; else if (resIsAsc === false) pxRes = +res.value;
   resIsAsc = a;
@@ -309,7 +311,7 @@ function setResMode() {
   res.value = a ? ascCols : pxRes;
   resLabel.textContent = res.value + (a ? ' cols' : ' px wide');
   document.getElementById('sizes').style.display = a ? 'none' : ''; // pixel presets don't apply to columns
-  document.getElementById('charsets').style.display = a && pal !== 'zzt' && pal !== 'zztw' ? '' : 'none'; // character sets only apply to the ASCII styles
+  document.getElementById('charsets').style.display = a && !isZzt(pal) ? '' : 'none'; // character sets only apply to the ASCII styles
 }
 setResMode();
 
@@ -919,7 +921,17 @@ function zztNearest(r, g, b, P) {
   return best;
 }
 let zztBuf = null, zztSrc = null;
-function zztFrame(src, sw, sh, P = ZZT_EGA) {
+// ZZT-R: characters are still matched to the true colours, but shown in a shuffled palette. Black stays black,
+// as in the ZX shuffle. The seed changes when the style is tapped again
+let zztRSeed = (Math.random() * 4294967296) >>> 0;
+function newZztSeed() { zztRSeed = (Math.random() * 4294967296) >>> 0; }
+function zztShow(P) {
+  const rnd = mulberry32(zztRSeed), p = P.map((_, k) => k);
+  for (let i = p.length - 1; i > 1; i--) { const j = 1 + Math.floor(rnd() * i); [p[i], p[j]] = [p[j], p[i]]; }
+  return p.map(k => P[k]);
+}
+function isZzt(p) { return p === 'zzt' || p === 'zztw' || p === 'zzr' || p === 'zztwr'; }
+function zztFrame(src, sw, sh, P = ZZT_EGA, shuffle = false) {
   if (!zztSrc) zztSrc = document.createElement('canvas');
   const crop = cropFor(sw, sh);
   const cols = Math.min(+res.value, 120);
@@ -941,6 +953,7 @@ function zztFrame(src, sw, sh, P = ZZT_EGA) {
     for (let i = 3; i < zztBuf.length; i += 4) zztBuf[i] = 255;
   }
   const buf = zztBuf;
+  const show = shuffle ? zztShow(P) : P; // once per frame, not per character
   for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
     // The four samples of this character, each snapped to the EGA palette
     const q = [];
@@ -960,7 +973,7 @@ function zztFrame(src, sw, sh, P = ZZT_EGA) {
       fg = +Object.keys(rc).sort((a, b) => rc[b] - rc[a])[0];
       k = rest.filter(c => c === fg).length;
     }
-    const bgC = P[bg], fgC = P[fg];
+    const bgC = show[bg], fgC = show[fg];
     for (let y = 0; y < ZZT_CH; y++) for (let x = 0; x < ZZT_CW; x++) {
       const o = ((cy * ZZT_CH + y) * W + cx * ZZT_CW + x) * 4;
       const c = zztOn(fg === bg ? 0 : k, x, y) ? fgC : bgC;
@@ -1139,7 +1152,7 @@ function drawFrame() {
   const sw = src.videoWidth || src.width;
   const sh = src.videoHeight || src.height;
   if (!reviewVid && CELL_MODES[pal]) { dirty = false; cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
-  if (!reviewVid && (pal === 'zzt' || pal === 'zztw')) { dirty = false; zztFrame(src, sw, sh, pal === 'zztw' ? ZZT_WIDE : ZZT_EGA); view.style.display = 'block'; msg.style.display = 'none'; return; }
+  if (!reviewVid && isZzt(pal)) { dirty = false; zztFrame(src, sw, sh, pal === 'zztw' || pal === 'zztwr' ? ZZT_WIDE : ZZT_EGA, pal === 'zzr' || pal === 'zztwr'); view.style.display = 'block'; msg.style.display = 'none'; return; }
   const onGpu = !reviewVid && gpuReady();
   // Styles that run on the CPU go to the worker, unless the worker is unavailable (zx styles stay on the main thread)
   const viaWorker = !reviewVid && !onGpu && !!procWorker && pal !== 'zx' && pal !== 'zxr';
@@ -1419,6 +1432,7 @@ async function startCamera() {
 document.querySelectorAll('#pals button').forEach(b => b.addEventListener('click', () => {
   pal = b.dataset.pal;
   if (pal === 'zxr') newZxSeed(); // tapping the style again gives a new set of colours
+  if (pal === 'zzr' || pal === 'zztwr') newZztSeed();
   document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   setResMode();
   persist();
