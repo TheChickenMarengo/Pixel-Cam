@@ -92,6 +92,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="asciic" aria-pressed="false">Colour ASCII</button>
     <button data-pal="dot" aria-pressed="false">Dot matrix</button>
     <button data-pal="zzt" aria-pressed="false">ZZT</button>
+    <button data-pal="zztw" aria-pressed="false">ZZT Wide</button>
     <button data-pal="st" aria-pressed="false">Atari ST</button>
     <button data-pal="lynx" aria-pressed="false">Atari Lynx</button>
     <button data-pal="apple" aria-pressed="false">Apple II</button>
@@ -298,7 +299,7 @@ document.querySelectorAll('#pals button').forEach(x => x.setAttribute('aria-pres
 
 // Switch the resolution slider between pixels and columns when the style changes
 function setResMode() {
-  const a = pal === 'ascii' || pal === 'asciic' || pal === 'zzt';
+  const a = pal === 'ascii' || pal === 'asciic' || pal === 'zzt' || pal === 'zztw';
   if (a === resIsAsc) return;
   if (resIsAsc === true) ascCols = +res.value; else if (resIsAsc === false) pxRes = +res.value;
   resIsAsc = a;
@@ -308,7 +309,7 @@ function setResMode() {
   res.value = a ? ascCols : pxRes;
   resLabel.textContent = res.value + (a ? ' cols' : ' px wide');
   document.getElementById('sizes').style.display = a ? 'none' : ''; // pixel presets don't apply to columns
-  document.getElementById('charsets').style.display = a && pal !== 'zzt' ? '' : 'none'; // character sets only apply to the ASCII styles
+  document.getElementById('charsets').style.display = a && pal !== 'zzt' && pal !== 'zztw' ? '' : 'none'; // character sets only apply to the ASCII styles
 }
 setResMode();
 
@@ -880,6 +881,9 @@ function c64Multi(d, w, h) {
 // Each character is judged from a 2x2 sample of the picture, so it can hold two colours
 const ZZT_EGA = [[0,0,0],[0,0,170],[0,170,0],[0,170,170],[170,0,0],[170,0,170],[170,85,0],[170,170,170],
   [85,85,85],[85,85,255],[85,255,85],[85,255,255],[255,85,85],[255,85,255],[255,255,85],[255,255,255]];
+// ZZT Wide: the full 64-colour palette (2 bits per channel), so browns, olives and soft tones are available
+const ZZT_WIDE = [];
+for (let r = 0; r < 4; r++) for (let g = 0; g < 4; g++) for (let b = 0; b < 4; b++) ZZT_WIDE.push([r * 85, g * 85, b * 85]);
 const ZZT_CW = 8, ZZT_CH = 14;
 // Is pixel (x, y) of a character foreground, when k of its four samples are foreground?
 // k = 1 gives a light shade, 2 medium, 3 dark, 4 solid
@@ -900,21 +904,22 @@ function zztBoost(r, g, b) {
 }
 // The EGA greys (black, the two greys and white) are the usual fallback for muted pixels. For a sample with real colour,
 // they get a penalty so a coloured entry wins unless the sample is close to grey
-const ZZT_GREY_PENALTY = 6000, ZZT_CHROMA = 25, ZZT_NEUTRAL = [0, 7, 8, 15];
-function zztNearest(r, g, b) {
+const ZZT_GREY_PENALTY = 6000, ZZT_CHROMA = 25;
+function zztNearest(r, g, b, P) {
   const [R, G, B] = zztBoost(r, g, b);
   const chroma = Math.max(r, g, b) - Math.min(r, g, b);
   let best = 0, bd = Infinity;
-  for (let k = 0; k < 16; k++) {
-    const c = ZZT_EGA[k];
+  for (let k = 0; k < P.length; k++) {
+    const c = P[k];
     let d = (R - c[0]) ** 2 + (G - c[1]) ** 2 + (B - c[2]) ** 2;
-    if (chroma > ZZT_CHROMA && ZZT_NEUTRAL.includes(k)) d += ZZT_GREY_PENALTY;
+    // A grey entry is one whose three channels are equal
+    if (chroma > ZZT_CHROMA && c[0] === c[1] && c[1] === c[2]) d += ZZT_GREY_PENALTY;
     if (d < bd) { bd = d; best = k; }
   }
   return best;
 }
 let zztBuf = null, zztSrc = null;
-function zztFrame(src, sw, sh) {
+function zztFrame(src, sw, sh, P = ZZT_EGA) {
   if (!zztSrc) zztSrc = document.createElement('canvas');
   const crop = cropFor(sw, sh);
   const cols = Math.min(+res.value, 120);
@@ -941,7 +946,7 @@ function zztFrame(src, sw, sh) {
     const q = [];
     for (let k = 0; k < 4; k++) {
       const i = ((cy * 2 + (k >> 1)) * gc + cx * 2 + (k & 1)) * 4;
-      q.push(zztNearest(px[i], px[i+1], px[i+2]));
+      q.push(zztNearest(px[i], px[i+1], px[i+2], P));
     }
     // The most common colour is the background; the most common other colour is the foreground
     const count = {};
@@ -955,7 +960,7 @@ function zztFrame(src, sw, sh) {
       fg = +Object.keys(rc).sort((a, b) => rc[b] - rc[a])[0];
       k = rest.filter(c => c === fg).length;
     }
-    const bgC = ZZT_EGA[bg], fgC = ZZT_EGA[fg];
+    const bgC = P[bg], fgC = P[fg];
     for (let y = 0; y < ZZT_CH; y++) for (let x = 0; x < ZZT_CW; x++) {
       const o = ((cy * ZZT_CH + y) * W + cx * ZZT_CW + x) * 4;
       const c = zztOn(fg === bg ? 0 : k, x, y) ? fgC : bgC;
@@ -1134,7 +1139,7 @@ function drawFrame() {
   const sw = src.videoWidth || src.width;
   const sh = src.videoHeight || src.height;
   if (!reviewVid && CELL_MODES[pal]) { dirty = false; cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
-  if (!reviewVid && pal === 'zzt') { dirty = false; zztFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
+  if (!reviewVid && (pal === 'zzt' || pal === 'zztw')) { dirty = false; zztFrame(src, sw, sh, pal === 'zztw' ? ZZT_WIDE : ZZT_EGA); view.style.display = 'block'; msg.style.display = 'none'; return; }
   const onGpu = !reviewVid && gpuReady();
   // Styles that run on the CPU go to the worker, unless the worker is unavailable (zx styles stay on the main thread)
   const viaWorker = !reviewVid && !onGpu && !!procWorker && pal !== 'zx' && pal !== 'zxr';
