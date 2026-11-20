@@ -92,6 +92,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-pal="dot" aria-pressed="false">Dot matrix</button>
     <button data-pal="zzt" aria-pressed="false">ZZT</button>
     <button data-pal="st" aria-pressed="false">Atari ST</button>
+    <button data-pal="lynx" aria-pressed="false">Atari Lynx</button>
     <button data-pal="apple" aria-pressed="false">Apple II</button>
     <button data-pal="bluen" aria-pressed="false">Blue noise</button>
   </div>
@@ -785,6 +786,34 @@ function atariST(d, w, h) {
   }
 }
 
+// Atari Lynx: 4096 colours (4 bits per channel), 16 on screen at once. As with the ST, the 16 most common colours
+// are re-chosen every 15 frames and used flat, with no dither. The picture is capped at the Lynx's 160 px width
+const LYNX_LEVEL = k => Math.round(k * 255 / 15);
+const q4 = v => Math.min(15, Math.round(v * 15 / 255));
+let lynxPal = null, lynxTick = 0;
+function atariLynx(d, w, h) {
+  if (!lynxPal || lynxTick++ % 15 === 0) {
+    const hist = new Uint32Array(4096);
+    for (let i = 0; i < d.length; i += 4) hist[(q4(d[i]) << 8) | (q4(d[i+1]) << 4) | q4(d[i+2])]++;
+    const top = [];
+    for (let k = 0; k < 4096; k++) if (hist[k]) top.push(k);
+    top.sort((a, b) => hist[b] - hist[a]);
+    lynxPal = top.slice(0, 16).map(k => [LYNX_LEVEL(k >> 8), LYNX_LEVEL((k >> 4) & 15), LYNX_LEVEL(k & 15)]);
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    const r = d[i], g = d[i+1], b = d[i+2];
+    let best = 0, bd = Infinity;
+    for (let p = 0; p < lynxPal.length; p++) {
+      const c = lynxPal[p];
+      const dd = (r - c[0]) ** 2 + (g - c[1]) ** 2 + (b - c[2]) ** 2;
+      if (dd < bd) { bd = dd; best = p; }
+    }
+    const c = lynxPal[best];
+    d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
+  }
+}
+
 // Mega Drive: 512 colours (3 bits per channel), up to 61 on screen. The 61 most common colours in the picture are used,
 // re-chosen every 15 frames, with ordered dither between them
 let mdPal = null, mdTick = 0;
@@ -1025,10 +1054,12 @@ const procCv = document.createElement('canvas');
 function buildWorkerSource() {
   const palettes = {};
   for (const k in PALETTES) if (PALETTES[k] && PALETTES[k].rgb) palettes[k] = { mode: PALETTES[k].mode, rgb: PALETTES[k].rgb };
-  const fns = [quantise, nearest, nearestCached, diffuse, lumaBuf, mono1, atkinson, channelQuant, vhsRand, vhs, atariST, megaDrive, cpcMode1, c64Multi, appleHires, blueNoise, applyFilter];
+  const fns = [quantise, nearest, nearestCached, diffuse, lumaBuf, mono1, atkinson, channelQuant, vhsRand, vhs, atariST, atariLynx, megaDrive, cpcMode1, c64Multi, appleHires, blueNoise, applyFilter];
   return `
 let dither = true, pal = 'gameboy', LUTS = {}, bufCache = null, vhsCopy = null;
-let stPal = null, stTick = 0, mdPal = null, mdTick = 0, cpcPal = null, cpcTick = 0;
+let stPal = null, stTick = 0, mdPal = null, mdTick = 0, cpcPal = null, cpcTick = 0, lynxPal = null, lynxTick = 0;
+const LYNX_LEVEL = k => Math.round(k * 255 / 15);
+const q4 = v => Math.min(15, Math.round(v * 15 / 255));
 const BAYER = ${JSON.stringify(BAYER)}, B8 = ${JSON.stringify(B8)}, BLUE = ${JSON.stringify(Array.from(BLUE))};
 const PALETTES = ${JSON.stringify(palettes)};
 const ST_LEVEL = k => Math.round(k * 255 / 7);
@@ -1049,6 +1080,7 @@ self.onmessage = (e) => {
   else if (pal === 'sms') channelQuant(d, w, h, 4);
   else if (pal === 'vhs') vhs(d, w, h, m.at);
   else if (pal === 'st') atariST(d, w, h);
+  else if (pal === 'lynx') atariLynx(d, w, h);
   else if (pal === 'apple') appleHires(d, w, h);
   else if (pal === 'bluen') blueNoise(d, w, h);
   else if (pal === 'c64mc') c64Multi(d, w, h);
@@ -1093,7 +1125,7 @@ function drawFrame() {
   // Still busy with the last picture: keep showing it until the new one arrives
   if (viaWorker && procBusy) return;
   dirty = false;
-  const cap = {atari: 160, apple: 280, md: 280, c64mc: 280}[pal];
+  const cap = {atari: 160, lynx: 160, apple: 280, md: 280, c64mc: 280}[pal];
   // A review clip is drawn at the size it was recorded, so it is not rescaled
   // Review clips keep their recorded shape; live pictures and photos use the chosen ratio
   const crop = reviewVid ? {sx: 0, sy: 0, cw: sw, ch: sh, ratio: sw / sh} : cropFor(sw, sh);
@@ -1140,6 +1172,7 @@ function drawFrame() {
     else if (pal === 'sms') channelQuant(img.data, w, h, 4);
     else if (pal === 'vhs') vhs(img.data, w, h, frozen ? frozenNow : undefined);
     else if (pal === 'st') atariST(img.data, w, h);
+    else if (pal === 'lynx') atariLynx(img.data, w, h);
     else if (pal === 'apple') appleHires(img.data, w, h);
     else if (pal === 'bluen') blueNoise(img.data, w, h);
     else if (pal === 'c64mc') c64Multi(img.data, w, h);
