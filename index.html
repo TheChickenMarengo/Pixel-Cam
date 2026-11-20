@@ -892,11 +892,26 @@ function zztOn(k, x, y) {
 }
 // Camera colours are much less saturated than the EGA palette, so most of them match a grey. Boosting the colour
 // before matching pulls each pixel toward the nearest saturated EGA colour
-const ZZT_SATURATION = 1.8;
+const ZZT_SATURATION = 2.5;
 function zztBoost(r, g, b) {
   const y = 0.299 * r + 0.587 * g + 0.114 * b;
   const c = v => Math.max(0, Math.min(255, y + ZZT_SATURATION * (v - y)));
   return [c(r), c(g), c(b)];
+}
+// The EGA greys (black, the two greys and white) are the usual fallback for muted pixels. For a sample with real colour,
+// they get a penalty so a coloured entry wins unless the sample is close to grey
+const ZZT_GREY_PENALTY = 6000, ZZT_CHROMA = 25, ZZT_NEUTRAL = [0, 7, 8, 15];
+function zztNearest(r, g, b) {
+  const [R, G, B] = zztBoost(r, g, b);
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+  let best = 0, bd = Infinity;
+  for (let k = 0; k < 16; k++) {
+    const c = ZZT_EGA[k];
+    let d = (R - c[0]) ** 2 + (G - c[1]) ** 2 + (B - c[2]) ** 2;
+    if (chroma > ZZT_CHROMA && ZZT_NEUTRAL.includes(k)) d += ZZT_GREY_PENALTY;
+    if (d < bd) { bd = d; best = k; }
+  }
+  return best;
 }
 let zztBuf = null, zztSrc = null;
 function zztFrame(src, sw, sh) {
@@ -926,7 +941,7 @@ function zztFrame(src, sw, sh) {
     const q = [];
     for (let k = 0; k < 4; k++) {
       const i = ((cy * 2 + (k >> 1)) * gc + cx * 2 + (k & 1)) * 4;
-      q.push(nearest(...zztBoost(px[i], px[i+1], px[i+2]), ZZT_EGA));
+      q.push(zztNearest(px[i], px[i+1], px[i+2]));
     }
     // The most common colour is the background; the most common other colour is the foreground
     const count = {};
