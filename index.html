@@ -860,6 +860,14 @@ function zztOn(k, x, y) {
   if (k === 2) return (x + y) % 2 === 0 ? 1 : 0;
   return (x % 2 === 1 && y % 2 === 1) ? 0 : 1;
 }
+// Camera colours are much less saturated than the EGA palette, so most of them match a grey. Boosting the colour
+// before matching pulls each pixel toward the nearest saturated EGA colour
+const ZZT_SATURATION = 1.8;
+function zztBoost(r, g, b) {
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const c = v => Math.max(0, Math.min(255, y + ZZT_SATURATION * (v - y)));
+  return [c(r), c(g), c(b)];
+}
 let zztBuf = null, zztSrc = null;
 function zztFrame(src, sw, sh) {
   if (!zztSrc) zztSrc = document.createElement('canvas');
@@ -888,7 +896,7 @@ function zztFrame(src, sw, sh) {
     const q = [];
     for (let k = 0; k < 4; k++) {
       const i = ((cy * 2 + (k >> 1)) * gc + cx * 2 + (k & 1)) * 4;
-      q.push(nearest(px[i], px[i+1], px[i+2], ZZT_EGA));
+      q.push(nearest(...zztBoost(px[i], px[i+1], px[i+2]), ZZT_EGA));
     }
     // The most common colour is the background; the most common other colour is the foreground
     const count = {};
