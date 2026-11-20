@@ -1675,6 +1675,13 @@ function noVideo() {
 }
 
 // Records the processed picture as the camera sees it; press again to stop and save
+let recCv = null, recCtx = null, recRaf = 0;
+// Copies the on-screen picture into the larger recording canvas once per display frame
+function copyFrames() {
+  recCtx.drawImage(view, 0, 0, recCv.width, recCv.height);
+  recRaf = requestAnimationFrame(copyFrames);
+}
+function stopCopy() { cancelAnimationFrame(recRaf); recCv = null; recCtx = null; }
 recBtn.addEventListener('click', () => {
   if (recorder) { recorder.stop(); return; }
   if (reviewVid) return;
@@ -1682,18 +1689,28 @@ recBtn.addEventListener('click', () => {
   const opts = ['video/mp4', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
   if (!opts) { noVideo(); return; }
   const ext = opts.startsWith('video/mp4') ? 'mp4' : 'webm';
+  // Record at a larger size than the on-screen picture, with each picture pixel a whole block (as in the photo export),
+  // at a higher bitrate than the browser's default
+  const s = Math.max(1, Math.floor(1080 / Math.max(view.width, view.height)));
+  recCv = document.createElement('canvas');
+  recCv.width = view.width * s; recCv.height = view.height * s;
+  recCtx = recCv.getContext('2d');
+  recCtx.imageSmoothingEnabled = false;
   chunks = [];
-  try { recorder = new MediaRecorder(view.captureStream(30), { mimeType: opts }); }
-  catch (e) { noVideo(); return; }
+  try { recorder = new MediaRecorder(recCv.captureStream(30), { mimeType: opts, videoBitsPerSecond: 8000000 }); }
+  catch (e) { recCv = null; noVideo(); return; }
+  copyFrames();
   recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
   // If recording fails, free the recorder so the button works again
   recorder.onerror = () => {
+    stopCopy();
     recorder = null;
     recBtn.textContent = 'Record';
     recBtn.classList.remove('rec-on');
     noVideo();
   };
   recorder.onstop = () => {
+    stopCopy();
     const blob = new Blob(chunks, { type: opts });
     recorder = null;
     recBtn.textContent = 'Record';
