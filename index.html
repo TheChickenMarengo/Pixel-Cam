@@ -39,6 +39,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 [hidden]{display:none!important}
 /* Portrait: styles scroll sideways in one row */
 #pals,#filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+#pals{overflow-anchor:none} /* stop the browser keeping the old scroll position when favourites move to the front */
 #pals button,#filters button{flex:0 0 auto;white-space:nowrap}
 #pals button.fav::before{content:'★ ';color:#f5e800}
 /* Landscape: controls move to a side panel so the picture gets the full height */
@@ -1410,6 +1411,8 @@ function applyFavs() {
   const btns = [...row.querySelectorAll('button')];
   btns.forEach(b => b.classList.toggle('fav', favs.has(b.dataset.pal)));
   btns.filter(b => favs.has(b.dataset.pal)).reverse().forEach(b => row.prepend(b));
+  // Favourites sit at the front, so bring the front into view; otherwise a pinned style can land off-screen
+  row.scrollLeft = 0;
 }
 applyFavs();
 let holdTimer = 0, suppressClick = false;
