@@ -100,7 +100,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
   <div class="row" id="aspect"><button data-aspect="original" aria-pressed="false">Original</button><button data-aspect="4x3" aria-pressed="false">4:3</button><button data-aspect="3x2" aria-pressed="false">3:2</button><button data-aspect="16x9" aria-pressed="false">16:9</button><button data-aspect="3x4" aria-pressed="false">3:4</button><button data-aspect="2x3" aria-pressed="false">2:3</button><button data-aspect="9x16" aria-pressed="false">9:16</button></div>
-  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
+  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button><button data-set="hiragana" aria-pressed="false">Hiragana</button><button data-set="arabic" aria-pressed="false">Arabic</button><button data-set="hindi" aria-pressed="false">Hindi</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
   <input type="range" id="bri" min="-100" max="100" step="5" value="0">
@@ -634,6 +634,9 @@ const ASCII_SETS = {
   simple: ' .:-=+*#%@',
   letters: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
   symbols: ' .,:;\'"`-_~+=*^!?|/\\<>()[]{}#%&$@',
+  hiragana: ' あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん',
+  arabic: ' ابتثجحخدذرزسشصضطظعغفقكلمنهوي',
+  hindi: ' अआइईउऊएऐओऔकखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसह',
 };
 let ASCII_RAMP = ASCII_CANDIDATES;
 let asciiAtlas = null, asciiOut = null, asciiLut = null, asciiCands = null, asciiAlpha = null, asciiBuf = null;
