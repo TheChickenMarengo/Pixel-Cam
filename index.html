@@ -20,7 +20,9 @@ body{position:fixed;inset:0;display:flex;flex-direction:column;overflow:hidden;p
 #stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:12px;overflow:hidden}
 #view{display:none;background:#000;image-rendering:pixelated;image-rendering:crisp-edges}
 #msg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--dim)}
-#panel{background:var(--panel);border-top:1px solid var(--edge);padding:12px 14px;display:flex;flex-direction:column;gap:10px;max-height:60%;overflow:auto;overscroll-behavior:contain;touch-action:pan-y}
+/* The controls: a scrolling panel with the shutter row fixed beneath it */
+#controls{background:var(--panel);border-top:1px solid var(--edge);display:flex;flex-direction:column;max-height:62%}
+#panel{padding:12px 14px 6px;display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-y}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .spread{justify-content:space-between}
 button{font:inherit;color:var(--ink);background:#1a241a;border:1px solid var(--edge);padding:8px 10px;border-radius:4px;cursor:pointer}
@@ -46,8 +48,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 #adjust .row.spread{justify-content:center;gap:14px}
 /* Pinned styles: all visible, wrapping and centred, with the drawer button centred beneath */
 #favWrap{flex-direction:column;gap:8px}
-#favBar{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:100%}
-#favBar:empty::before{content:'Long-press a style to pin it here';color:var(--dim);font-size:12px}
+/* Rows of buttons that scroll sideways, centred when they fit, with soft edges to show there is more */
+#favBar,#sizes,#aspect,#charsets{display:flex;flex-wrap:nowrap;justify-content:safe center;gap:8px;width:100%;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overflow-anchor:none;padding:2px 14px;margin:0 -14px;width:calc(100% + 28px);-webkit-mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 14px),transparent)}
+#favBar::-webkit-scrollbar,#sizes::-webkit-scrollbar,#aspect::-webkit-scrollbar,#charsets::-webkit-scrollbar{display:none}
+#favBar button,#sizes button,#aspect button,#charsets button{flex:0 0 auto;white-space:nowrap}
+#favBar:empty::before{content:'Long-press a style to pin it here';color:var(--dim);font-size:12px;margin:auto}
 #favBar button.cur{border-style:dashed}
 #openStyles{min-width:140px}
 /* The style drawer: a centred sheet that slides up from the bottom */
@@ -72,10 +77,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 #closeStyles{min-width:140px}
 #adjust{display:flex;flex-direction:column;gap:10px}
 /* Seven crop ratios fit on one line */
-#aspect{gap:6px}
-#aspect button{padding:8px 7px}
 /* Bottom row: two buttons, the shutter and two buttons, evenly spaced */
-#bottomRow{display:grid;grid-template-columns:1fr 1fr auto 1fr 1fr;gap:8px;align-items:center}
+#bottomRow{display:grid;grid-template-columns:1fr 1fr auto 1fr 1fr;gap:8px;align-items:center;padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--edge);flex:0 0 auto}
 #bottomRow button{padding:0;height:44px;display:flex;align-items:center;justify-content:center}
 #bottomRow #shoot{height:58px}
 #rec .dot,#rec .stop{display:inline-flex}
@@ -86,7 +89,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* Landscape: controls move to a side panel so the picture gets the full height */
 @media (orientation: landscape) and (max-height: 600px) {
   body{flex-direction:row}
-  #panel{width:46%;max-height:100%;border-top:0;border-left:1px solid var(--edge)}
+  #controls{width:46%;max-height:100%;border-top:0;border-left:1px solid var(--edge)}
 }
 </style>
 </head>
@@ -97,6 +100,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 </div>
 <div id="flash"></div>
 <div id="toast"></div>
+<div id="controls">
 <div id="panel">
   <div class="dim" id="inst" hidden></div>
   <div class="row"><button id="installBtn" hidden>Install app</button></div>
@@ -121,12 +125,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div class="row spread"><span class="dim">Saturation</span><span class="dim" id="satLabel">1.00</span></div>
   <input type="range" id="sat" min="0" max="2" step="0.05" value="1">
   </div>
-  <div class="row spread" id="bottomRow">
+</div>
+<div class="row spread" id="bottomRow">
     <button id="dither" aria-pressed="true" aria-label="Dither on" title="Dither on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="5" height="5" fill="currentColor"/><rect x="14" y="4" width="5" height="5" fill="currentColor"/><rect x="9" y="9" width="5" height="5" fill="currentColor"/><rect x="4" y="14" width="5" height="5" fill="currentColor"/><rect x="14" y="14" width="5" height="5" fill="currentColor"/></svg></button>
     <button id="flip" aria-label="Flip camera" title="Flip camera"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4-4-4 4 4 4"/></svg></button>
     <button id="shoot" aria-label="Take photo" title="Take photo"></button>
     <button id="rec" aria-label="Record video" title="Record video"><span class="dot"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="currentColor"/></svg></span><span class="stop"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/></svg></span></button>
     <button id="save" aria-label="Save PNG" title="Save PNG"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/></svg></button>  </div>
+</div>
 </div>
 <video id="cam" playsinline muted autoplay style="display:none"></video>
 <div id="drawerBack"></div>
@@ -1527,6 +1533,9 @@ function renderFavBar() {
     favBar.appendChild(c);
   });
   markPal();
+  // Keep the chosen style in view (or the start of the bar when none is chosen)
+  const on = favBar.querySelector('[aria-pressed="true"]');
+  favBar.scrollLeft = on ? Math.max(0, on.offsetLeft - (favBar.clientWidth - on.offsetWidth) / 2) : 0;
 }
 function applyFavs() {
   const btns = [...palRow.querySelectorAll('button')];
