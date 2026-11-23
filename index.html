@@ -36,7 +36,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .dim{color:var(--dim);font-size:12px}
 #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .2s}
 #flash.on{opacity:.8;transition:none}
-#view{touch-action:none;transform-origin:center center}
+#view{transform-origin:center center}
+#stage{touch-action:none}
 #adjBtn[aria-pressed="true"]{background:var(--accent);color:#0f380f;border-color:var(--accent)}
 [hidden]{display:none!important}
 #panel>*{flex-shrink:0} /* rows with their own sideways scroll must not collapse when the panel is short */
@@ -1766,8 +1767,10 @@ function startPinch() {
   const [a, b] = [...pointers.values()];
   pinchStart = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom };
 }
-view.addEventListener('pointerdown', e => {
-  view.setPointerCapture(e.pointerId);
+// The whole stage listens, so swipes and pinches also work on the black area around the picture
+stage.addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return; // the Back to live button keeps its own taps
+  stage.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 2) { startPinch(); swipe = null; }
   else if (pointers.size === 1) swipe = { x: e.clientX, y: e.clientY, t: Date.now() };
@@ -1775,7 +1778,7 @@ view.addEventListener('pointerdown', e => {
   if (pointers.size === 1 && now - lastTap < 300) { zoom = 1; applyZoom(); }
   lastTap = now;
 });
-view.addEventListener('pointermove', e => {
+stage.addEventListener('pointermove', e => {
   if (!pointers.has(e.pointerId)) return;
   const prev = pointers.get(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1800,8 +1803,8 @@ function endPointer(e) {
   pinchStart = null;
   if (pointers.size === 2) startPinch();
 }
-view.addEventListener('pointerup', endPointer);
-view.addEventListener('pointercancel', endPointer);
+stage.addEventListener('pointerup', endPointer);
+stage.addEventListener('pointercancel', endPointer);
 
 window.addEventListener('resize', fit);
 
