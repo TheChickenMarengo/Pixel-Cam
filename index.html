@@ -1532,10 +1532,9 @@ function showStyleName(text) {
   el.textContent = text; el.classList.add('on');
   clearTimeout(styleNameTimer); styleNameTimer = setTimeout(() => el.classList.remove('on'), 1400);
 }
-// Steps to the next or previous style: through the pinned styles when two or more are pinned, otherwise through all of them
+// Steps to the next or previous style, through every style in drawer order
 function stepStyle(dir) {
-  let list = [...palRow.querySelectorAll('button')];
-  if (favs.size >= 2) list = list.filter(b => favs.has(b.dataset.pal));
+  const list = [...palRow.querySelectorAll('button')];
   if (!list.length) return;
   const i = list.findIndex(b => b.dataset.pal === pal);
   const next = list[i < 0 ? (dir > 0 ? 0 : list.length - 1) : (i + dir + list.length) % list.length];
@@ -1784,6 +1783,11 @@ view.addEventListener('pointermove', e => {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
     zoom = Math.min(4, Math.max(1, pinchStart.zoom * d / pinchStart.dist));
+  } else if (pointers.size === 1 && zoom === 1 && swipe) {
+    // Dragging sideways steps through the styles as you go: one step for each 56 px, so a long drag keeps going
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    if (!swipe.vert && Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)) swipe.vert = true; // mostly vertical: not a swipe
+    if (!swipe.vert && Math.abs(dx) >= 56) { stepStyle(dx < 0 ? 1 : -1); swipe.x = e.clientX; swipe.y = e.clientY; }
   } else if (pointers.size === 1 && zoom > 1) {
     panX += e.clientX - prev.x;
     panY += e.clientY - prev.y;
@@ -1791,11 +1795,6 @@ view.addEventListener('pointermove', e => {
   applyZoom();
 });
 function endPointer(e) {
-  // A quick, mostly horizontal swipe on the unzoomed picture changes the style
-  if (e.type === 'pointerup' && swipe && pointers.size === 1 && zoom === 1) {
-    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
-    if (Date.now() - swipe.t < 700 && Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) stepStyle(dx < 0 ? 1 : -1);
-  }
   swipe = null;
   pointers.delete(e.pointerId);
   pinchStart = null;
