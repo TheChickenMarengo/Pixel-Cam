@@ -44,7 +44,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* Controls are centred and symmetrical */
 .row{justify-content:center}
 #adjust .row.spread{justify-content:center;gap:14px}
-#filters{justify-content:safe center}
 /* Pinned styles: all visible, wrapping and centred, with the drawer button centred beneath */
 #favWrap{flex-direction:column;gap:8px}
 #favBar{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:100%}
@@ -57,17 +56,33 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 #drawer{position:fixed;left:50%;bottom:0;z-index:20;width:min(100%,560px);background:var(--panel);border:1px solid var(--edge);border-bottom:0;border-radius:14px 14px 0 0;padding:8px 14px calc(14px + env(safe-area-inset-bottom));max-height:78%;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;transform:translate(-50%,105%);transition:transform .25s ease}
 #drawer.open{transform:translate(-50%,0)}
 #drawerHandle{width:44px;height:5px;border-radius:3px;background:var(--edge);flex:0 0 auto;cursor:pointer}
-#pals{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:100%}
-#pals button{white-space:nowrap;flex:0 0 calc(33.333% - 6px);padding:10px 4px;text-align:center}
+#drawerTabs{gap:0}
+#drawerTabs button{min-width:110px;border-radius:0}
+#drawerTabs button:first-child{border-radius:6px 0 0 6px}
+#drawerTabs button:last-child{border-radius:0 6px 6px 0}
+#pals{display:flex;flex-direction:column;gap:16px;width:100%}
+#pals[hidden],#filters[hidden]{display:none}
+.group{display:flex;flex-direction:column;gap:8px;align-items:center}
+.group[hidden]{display:none}
+.gname{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.grid,#filters{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:100%}
+.grid button,#filters button{white-space:nowrap;flex:0 0 calc(33.333% - 6px);padding:10px 4px;text-align:center}
 #pals button.fav{display:none} /* pinned styles live in the bar */
 #favBar button.fav::before{content:'★ ';color:#f5e800}
 #closeStyles{min-width:140px}
+#adjust{display:flex;flex-direction:column;gap:10px}
 /* Seven crop ratios fit on one line */
 #aspect{gap:6px}
 #aspect button{padding:8px 7px}
 /* Bottom row: two buttons, the shutter and two buttons, evenly spaced */
 #bottomRow{display:grid;grid-template-columns:1fr 1fr auto 1fr 1fr;gap:8px;align-items:center}
-#bottomRow button{padding:8px 2px;text-align:center;white-space:nowrap;font-size:13px}
+#bottomRow button{padding:0;height:44px;display:flex;align-items:center;justify-content:center}
+#bottomRow #shoot{height:58px}
+#rec .dot,#rec .stop{display:inline-flex}
+#rec .stop,#rec.rec-on .dot{display:none}
+#rec.rec-on .stop{display:inline-flex}
+#toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#000c;color:var(--ink);padding:8px 14px;border-radius:16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;max-width:90%;text-align:center}
+#toast.on{opacity:1}
 /* Landscape: controls move to a side panel so the picture gets the full height */
 @media (orientation: landscape) and (max-height: 600px) {
   body{flex-direction:row}
@@ -81,8 +96,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="msg"></div>
 </div>
 <div id="flash"></div>
+<div id="toast"></div>
 <div id="panel">
-  <div class="dim" id="inst">Checking install…</div>
+  <div class="dim" id="inst" hidden></div>
   <div class="row"><button id="installBtn" hidden>Install app</button></div>
   <div class="row" id="reviewBar" hidden>
     <button id="reviewSave">Save video</button>
@@ -90,23 +106,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </div>
   <div class="row" id="favWrap">
     <div id="favBar"></div>
-    <button id="openStyles" aria-expanded="false">More styles ▴</button>
-  </div>
-  <div class="row" id="filters">
-    <button data-filter="none" aria-pressed="true">No filter</button>
-    <button data-filter="spectrum" aria-pressed="false">Spectrum</button>
-    <button data-filter="predator" aria-pressed="false">Predator</button>
-    <button data-filter="alert" aria-pressed="false">Red alert</button>
-    <button data-filter="knight" aria-pressed="false">Grey</button>
-    <button data-filter="sunset" aria-pressed="false">Sunset</button>
-    <button data-filter="vaporwave" aria-pressed="false">Vaporwave</button>
-    <button data-filter="infrared" aria-pressed="false">Infrared</button>
-    <button data-filter="neon" aria-pressed="false">Neon night</button>
-    <button data-filter="sepia" aria-pressed="false">Sepia</button>
-    <button data-filter="blueprint" aria-pressed="false">Blueprint</button>
-    <button data-filter="riso" aria-pressed="false">Risograph</button>
-    <button data-filter="nightvision" aria-pressed="false">Night vision</button>
-    <button data-filter="random" aria-pressed="false">Random</button>
+    <div class="row"><button id="openStyles" aria-expanded="false">More styles ▴</button><button id="openFilters" aria-expanded="false">Filter ▴</button></div>
   </div>
   <div class="row"><button id="adjBtn" aria-pressed="true">Adjust ▴</button></div>
   <div id="adjust">
@@ -122,54 +122,41 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <input type="range" id="sat" min="0" max="2" step="0.05" value="1">
   </div>
   <div class="row spread" id="bottomRow">
-    <button id="dither" aria-pressed="true">Dither on</button>
-    <button id="flip">Flip</button>
+    <button id="dither" aria-pressed="true" aria-label="Dither on" title="Dither on"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="5" height="5" fill="currentColor"/><rect x="14" y="4" width="5" height="5" fill="currentColor"/><rect x="9" y="9" width="5" height="5" fill="currentColor"/><rect x="4" y="14" width="5" height="5" fill="currentColor"/><rect x="14" y="14" width="5" height="5" fill="currentColor"/></svg></button>
+    <button id="flip" aria-label="Flip camera" title="Flip camera"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4-4-4 4 4 4"/></svg></button>
     <button id="shoot" aria-label="Take photo" title="Take photo"></button>
-    <button id="rec" title="Record video">Record</button>
-    <button id="save" title="Save the current frame">Save PNG</button>  </div>
+    <button id="rec" aria-label="Record video" title="Record video"><span class="dot"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="currentColor"/></svg></span><span class="stop"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/></svg></span></button>
+    <button id="save" aria-label="Save PNG" title="Save PNG"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/></svg></button>  </div>
 </div>
 <video id="cam" playsinline muted autoplay style="display:none"></video>
 <div id="drawerBack"></div>
 <div id="drawer" aria-hidden="true">
   <div id="drawerHandle"></div>
-  <span class="dim">Styles · long-press one to pin it</span>
-  <div class="row" id="pals">
-    <button data-pal="original" aria-pressed="false">Original</button>
-    <button data-pal="gameboy" aria-pressed="true">Game Boy</button>
-    <button data-pal="gbc" aria-pressed="false">GB Colour</button>
-    <button data-pal="dos" aria-pressed="false">DOS</button>
-    <button data-pal="mono" aria-pressed="false">1-bit</button>
-    <button data-pal="mono2" aria-pressed="false">1-bit Diffuse</button>
-    <button data-pal="atkinson" aria-pressed="false">1-bit Atkinson</button>
-    <button data-pal="nes" aria-pressed="false">NES</button>
-    <button data-pal="c64" aria-pressed="false">C64</button>
-    <button data-pal="c64mc" aria-pressed="false">C64 Multi</button>
-    <button data-pal="zx" aria-pressed="false">ZX Spectrum</button>
-    <button data-pal="zxr" aria-pressed="false">ZX Spectrum-R</button>
-    <button data-pal="md" aria-pressed="false">Mega Drive</button>
-    <button data-pal="sms" aria-pressed="false">Master System</button>
-    <button data-pal="pocket" aria-pressed="false">GB Pocket</button>
-    <button data-pal="cga" aria-pressed="false">CGA</button>
-    <button data-pal="pico8" aria-pressed="false">Pico-8</button>
-    <button data-pal="vhs" aria-pressed="false">VHS</button>
-    <button data-pal="amiga" aria-pressed="false">Amiga 500</button>
-    <button data-pal="cpc" aria-pressed="false">Amstrad CPC</button>
-    <button data-pal="atari" aria-pressed="false">Atari 2600</button>
-    <button data-pal="vb" aria-pressed="false">Virtual Boy</button>
-    <button data-pal="nokia" aria-pressed="false">Nokia 3310</button>
-    <button data-pal="green" aria-pressed="false">Green screen</button>
-    <button data-pal="amber" aria-pressed="false">Amber screen</button>
-    <button data-pal="ascii" aria-pressed="false">ASCII</button>
-    <button data-pal="asciic" aria-pressed="false">Colour ASCII</button>
-    <button data-pal="dot" aria-pressed="false">Dot matrix</button>
-    <button data-pal="zzt" aria-pressed="false">ZZT</button>
-    <button data-pal="zztw" aria-pressed="false">ZZT Wide</button>
-    <button data-pal="zzr" aria-pressed="false">ZZT-R</button>
-    <button data-pal="zztwr" aria-pressed="false">ZZT Wide-R</button>
-    <button data-pal="st" aria-pressed="false">Atari ST</button>
-    <button data-pal="lynx" aria-pressed="false">Atari Lynx</button>
-    <button data-pal="apple" aria-pressed="false">Apple II</button>
-    <button data-pal="bluen" aria-pressed="false">Blue noise</button>
+  <div class="row" id="drawerTabs"><button data-tab="styles" aria-pressed="true">Styles</button><button data-tab="filters" aria-pressed="false">Filters</button></div>
+  <span class="dim" id="drawerHint">Long-press a style to pin it</span>
+  <div id="pals">
+    <div class="group"><div class="gname">Basics</div><div class="grid"><button data-pal="original" aria-pressed="false">Original</button><button data-pal="mono" aria-pressed="false">1-bit</button><button data-pal="mono2" aria-pressed="false">1-bit Diffuse</button><button data-pal="atkinson" aria-pressed="false">1-bit Atkinson</button><button data-pal="bluen" aria-pressed="false">Blue noise</button><button data-pal="dot" aria-pressed="false">Dot matrix</button></div></div>
+    <div class="group"><div class="gname">Handhelds</div><div class="grid"><button data-pal="gameboy" aria-pressed="false">Game Boy</button><button data-pal="gbc" aria-pressed="false">GB Colour</button><button data-pal="pocket" aria-pressed="false">GB Pocket</button><button data-pal="vb" aria-pressed="false">Virtual Boy</button><button data-pal="nokia" aria-pressed="false">Nokia 3310</button><button data-pal="lynx" aria-pressed="false">Atari Lynx</button></div></div>
+    <div class="group"><div class="gname">Consoles</div><div class="grid"><button data-pal="nes" aria-pressed="false">NES</button><button data-pal="sms" aria-pressed="false">Master System</button><button data-pal="md" aria-pressed="false">Mega Drive</button><button data-pal="atari" aria-pressed="false">Atari 2600</button><button data-pal="pico8" aria-pressed="false">Pico-8</button></div></div>
+    <div class="group"><div class="gname">Computers</div><div class="grid"><button data-pal="dos" aria-pressed="false">DOS</button><button data-pal="cga" aria-pressed="false">CGA</button><button data-pal="c64" aria-pressed="false">C64</button><button data-pal="c64mc" aria-pressed="false">C64 Multi</button><button data-pal="zx" aria-pressed="false">ZX Spectrum</button><button data-pal="zxr" aria-pressed="false">ZX Spectrum-R</button><button data-pal="cpc" aria-pressed="false">Amstrad CPC</button><button data-pal="amiga" aria-pressed="false">Amiga 500</button><button data-pal="st" aria-pressed="false">Atari ST</button><button data-pal="apple" aria-pressed="false">Apple II</button></div></div>
+    <div class="group"><div class="gname">Screens and tape</div><div class="grid"><button data-pal="vhs" aria-pressed="false">VHS</button><button data-pal="green" aria-pressed="false">Green screen</button><button data-pal="amber" aria-pressed="false">Amber screen</button></div></div>
+    <div class="group"><div class="gname">Text</div><div class="grid"><button data-pal="ascii" aria-pressed="false">ASCII</button><button data-pal="asciic" aria-pressed="false">Colour ASCII</button><button data-pal="zzt" aria-pressed="false">ZZT</button><button data-pal="zztw" aria-pressed="false">ZZT Wide</button><button data-pal="zzr" aria-pressed="false">ZZT-R</button><button data-pal="zztwr" aria-pressed="false">ZZT Wide-R</button></div></div>
+  </div>
+  <div id="filters" hidden>
+    <button data-filter="none" aria-pressed="true">No filter</button>
+    <button data-filter="spectrum" aria-pressed="false">Spectrum</button>
+    <button data-filter="predator" aria-pressed="false">Predator</button>
+    <button data-filter="alert" aria-pressed="false">Red alert</button>
+    <button data-filter="knight" aria-pressed="false">Grey</button>
+    <button data-filter="sunset" aria-pressed="false">Sunset</button>
+    <button data-filter="vaporwave" aria-pressed="false">Vaporwave</button>
+    <button data-filter="infrared" aria-pressed="false">Infrared</button>
+    <button data-filter="neon" aria-pressed="false">Neon night</button>
+    <button data-filter="sepia" aria-pressed="false">Sepia</button>
+    <button data-filter="blueprint" aria-pressed="false">Blueprint</button>
+    <button data-filter="riso" aria-pressed="false">Risograph</button>
+    <button data-filter="nightvision" aria-pressed="false">Night vision</button>
+    <button data-filter="random" aria-pressed="false">Random</button>
   </div>
   <button id="closeStyles">Close</button>
 </div>
@@ -1401,7 +1388,7 @@ function gpuMode() {
 function gpuReady() {
   if (glState === 'untried') {
     try { glState = initGL() ? 'ok' : 'failed'; }
-    catch (e) { glState = 'failed'; document.getElementById('inst').textContent = 'GPU off: ' + e.message; }
+    catch (e) { glState = 'failed'; showNote('GPU off: ' + e.message); }
   }
   return glState === 'ok' && gpuMode() >= 0;
 }
@@ -1452,7 +1439,7 @@ function gpuFrame(w, h) {
 // The loop always schedules the next frame, so one failed frame can't stop the picture for good
 function frame() {
   try { drawFrame(); }
-  catch (e) { document.getElementById('inst').textContent = 'Display error: ' + e.message; }
+  catch (e) { showNote('Display error: ' + e.message); }
   requestAnimationFrame(frame);
 }
 
@@ -1544,7 +1531,8 @@ function renderFavBar() {
 function applyFavs() {
   const btns = [...palRow.querySelectorAll('button')];
   btns.forEach(b => b.classList.toggle('fav', favs.has(b.dataset.pal)));
-  btns.filter(b => favs.has(b.dataset.pal)).reverse().forEach(b => palRow.prepend(b));
+  // A group with every style pinned has nothing left to show in the drawer
+  palRow.querySelectorAll('.group').forEach(g => { g.hidden = !g.querySelector('button:not(.fav)'); });
   renderFavBar();
 }
 palRow.querySelectorAll('button').forEach(attachHold);
@@ -1554,14 +1542,26 @@ applyFavs();
 
 // The style drawer
 const drawer = document.getElementById('drawer'), drawerBack = document.getElementById('drawerBack');
-function openDrawer(open) {
+let drawerTab = 'styles';
+function showTab(tab) {
+  drawerTab = tab;
+  document.querySelectorAll('#drawerTabs button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.tab === tab)));
+  document.getElementById('pals').hidden = tab !== 'styles';
+  document.getElementById('filters').hidden = tab !== 'filters';
+  document.getElementById('drawerHint').textContent = tab === 'styles' ? 'Long-press a style to pin it' : 'Pick a filter';
+}
+function openDrawer(open, tab) {
+  if (open && tab) showTab(tab);
   drawer.classList.toggle('open', open);
   drawerBack.classList.toggle('on', open);
   drawer.setAttribute('aria-hidden', String(!open));
-  document.getElementById('openStyles').setAttribute('aria-expanded', String(open));
+  document.getElementById('openStyles').setAttribute('aria-expanded', String(open && drawerTab === 'styles'));
+  document.getElementById('openFilters').setAttribute('aria-expanded', String(open && drawerTab === 'filters'));
 }
 function closeDrawer() { openDrawer(false); }
-document.getElementById('openStyles').addEventListener('click', () => openDrawer(true));
+document.getElementById('openStyles').addEventListener('click', () => openDrawer(true, 'styles'));
+document.getElementById('openFilters').addEventListener('click', () => openDrawer(true, 'filters'));
+document.querySelectorAll('#drawerTabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 document.getElementById('closeStyles').addEventListener('click', closeDrawer);
 drawerBack.addEventListener('click', closeDrawer);
 document.getElementById('drawerHandle').addEventListener('click', closeDrawer);
@@ -1611,6 +1611,11 @@ document.querySelectorAll('#sizes button').forEach(b => b.addEventListener('clic
   });
 });
 
+function updateFilterBtn() {
+  const b = document.querySelector(`#filters button[data-filter="${filterName}"]`);
+  document.getElementById('openFilters').textContent = (filterName === 'none' || !b ? 'Filter' : b.textContent) + ' ▴';
+}
+updateFilterBtn();
 document.querySelectorAll('#filters button').forEach(b => {
   b.setAttribute('aria-pressed', String(b.dataset.filter === filterName));
   b.addEventListener('click', () => {
@@ -1618,16 +1623,17 @@ document.querySelectorAll('#filters button').forEach(b => {
     if (filterName === 'random') FILTERS.random = randomGradientLut(); // a new gradient each time it is tapped
     filterLut = FILTERS[filterName];
     document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    updateFilterBtn();
+    closeDrawer();
     persist();
   });
 });
 
-ditherBtn.setAttribute('aria-pressed', String(dither));
-ditherBtn.textContent = 'Dither ' + (dither ? 'on' : 'off');
+function setDitherLabel() { const t = 'Dither ' + (dither ? 'on' : 'off'); ditherBtn.title = t; ditherBtn.setAttribute('aria-label', t); ditherBtn.setAttribute('aria-pressed', String(dither)); }
+setDitherLabel();
 ditherBtn.addEventListener('click', () => {
   dither = !dither;
-  ditherBtn.setAttribute('aria-pressed', String(dither));
-  ditherBtn.textContent = 'Dither ' + (dither ? 'on' : 'off');
+  setDitherLabel();
   persist();
 });
 
@@ -1766,10 +1772,16 @@ async function takePhoto() {
 shootBtn.addEventListener('click', toggleFreeze);
 saveBtn.addEventListener('click', takePhoto);
 
-// Briefly shows why recording is unavailable, then restores the Record label
+// A short message at the bottom of the screen
+let toastTimer = 0;
+function toast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
+}
+// Says why recording is unavailable
 function noVideo() {
-  recBtn.textContent = 'No video';
-  setTimeout(() => { if (!recorder) recBtn.textContent = 'Record'; }, 2000);
+  toast('Video recording is not available here');
 }
 
 // Records the processed picture as the camera sees it; press again to stop and save
@@ -1803,7 +1815,6 @@ recBtn.addEventListener('click', () => {
   recorder.onerror = () => {
     stopCopy();
     recorder = null;
-    recBtn.textContent = 'Record';
     recBtn.classList.remove('rec-on');
     noVideo();
   };
@@ -1811,12 +1822,10 @@ recBtn.addEventListener('click', () => {
     stopCopy();
     const blob = new Blob(chunks, { type: opts });
     recorder = null;
-    recBtn.textContent = 'Record';
     recBtn.classList.remove('rec-on');
     enterReview(blob, `pixel-video-${Date.now()}.${ext}`);
   };
   recorder.start();
-  recBtn.textContent = 'Stop';
   recBtn.classList.add('rec-on');
 });
 
@@ -1840,7 +1849,7 @@ document.addEventListener('visibilitychange', () => {
 // Service worker lets the app open offline once it has been visited
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').then(updateInstall).catch(e => {
-    document.getElementById('inst').textContent = 'Service worker failed: ' + e.message;
+    showNote('Service worker failed: ' + e.message);
   });
   navigator.serviceWorker.addEventListener('controllerchange', updateInstall);
 }
@@ -1854,16 +1863,14 @@ document.getElementById('installBtn').addEventListener('click', () => {
   deferredPrompt.prompt();
   deferredPrompt.userChoice.finally(() => { deferredPrompt = null; updateInstall(); });
 });
+// The install line is only shown for problems (showNote) or when the page is opened with ?debug
+function showNote(text) { const el = document.getElementById('inst'); el.textContent = text; el.hidden = false; }
 async function updateInstall() {
-  const el = document.getElementById('inst');
   const btn = document.getElementById('installBtn');
-  // Inside the Android app there is nothing to install, so the install line is hidden
-  if (location.hostname === 'pixelcam.local') { el.hidden = true; btn.hidden = true; return; }
-  if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
-    el.textContent = 'Installed and running as an app.';
-    btn.hidden = true;
-    return;
-  }
+  // Inside the Android app, or once installed, there is nothing to install
+  if (location.hostname === 'pixelcam.local' || matchMedia('(display-mode: standalone)').matches || navigator.standalone) { btn.hidden = true; return; }
+  btn.hidden = !deferredPrompt;
+  if (!/[?&]debug/.test(location.search)) return;
   const checks = [];
   checks.push(location.protocol === 'https:' ? 'https ok' : 'needs https');
   try {
@@ -1874,8 +1881,7 @@ async function updateInstall() {
     ? 'offline cache active'
     : 'offline cache not active yet (reload once)');
   checks.push(deferredPrompt ? 'install ready' : 'browser has not offered install');
-  el.textContent = checks.join(' · ');
-  btn.hidden = !deferredPrompt;
+  showNote(checks.join(' · '));
 }
 setTimeout(updateInstall, 2000);
 
