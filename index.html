@@ -644,7 +644,8 @@ const ASCII_SETS = {
   hebrew: ' אבגדהוזחטיכךלמםנןסעפףצץקרשת',
   // Chinese: from a single stroke up to very dense characters
   chinese: ' 一二三十人入八大小上下土口日月山木水火田中手心目白石立光明林国学空風馬魚鳥雨電道書森愛龍鬱響難',
-  runes: ' ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ',
+  // Runes: the whole Runic block (Elder and Younger Futhark, Anglo-Saxon Futhorc and the medieval forms), without its punctuation
+  runes: [' ', ...Array.from({length: 0x16EA - 0x16A0 + 1}, (_, i) => String.fromCharCode(0x16A0 + i)), ...Array.from({length: 0x16F8 - 0x16EE + 1}, (_, i) => String.fromCharCode(0x16EE + i))],
   math: ' ·+−×÷=≠≈±<>≤≥∞∑∏∫∂∇√∮∈∉∪∩⊂⊃∀∃∅∧∨¬⊕⊗≡∝∴∵ℝℕℤℚℂ',
   greek: ' αβγδεζηθικλμνξοπρσςτυφχψωΓΔΘΛΞΠΣΦΨΩ',
   arabic: ' ابتثجحخدذرزسشصضطظعغفقكلمنهويءأإآؤئةى٠١٢٣٤٥٦٧٨٩ﻻ',
