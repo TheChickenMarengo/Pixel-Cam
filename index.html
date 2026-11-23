@@ -339,7 +339,7 @@ const conEl = document.getElementById('con'), briEl = document.getElementById('b
 const SAVED = (() => { try { return JSON.parse(localStorage.getItem('pixelcam') || '{}'); } catch (e) { return {}; } })();
 let pal = SAVED.pal || 'gameboy', dither = SAVED.dither !== false, facing = SAVED.facing || 'environment';
 // Screen effects: a strength from 0 to 1 for each (drawn by the overlay near the end of the script)
-const FX_DEFS = [['scan', 'Scanlines'], ['curve', 'CRT curve'], ['vig', 'Vignette'], ['bloom', 'Glow'], ['split', 'RGB split'], ['grid', 'Pixel grid']];
+const FX_DEFS = [['scan', 'Scanlines'], ['vig', 'Vignette'], ['bloom', 'Glow'], ['split', 'RGB split'], ['grid', 'Pixel grid']];
 const fxParams = {};
 for (const [k] of FX_DEFS) fxParams[k] = Math.min(1, Math.max(0, +((SAVED.fx || {})[k]) || 0));
 let fxStale = true, fxBroken = false; // fxStale: the overlay needs redrawing even though the picture is still
@@ -2138,7 +2138,7 @@ stage.addEventListener('pointercancel', endPointer);
 window.addEventListener('resize', fit);
 
 // ---- Screen effects: drawn by a small WebGL shader at screen size, over the low-res picture ----
-// The picture is sampled in whole pixels, so it stays crisp. Effects: scanlines, CRT curve, vignette, glow, RGB split, pixel grid
+// The picture is sampled in whole pixels, so it stays crisp. Effects: scanlines, vignette, glow, RGB split, pixel grid
 const FX_VS = 'attribute vec2 a; varying vec2 v; void main() { v = vec2(a.x * 0.5 + 0.5, 0.5 - a.y * 0.5); gl_Position = vec4(a, 0.0, 1.0); }';
 const FX_FS = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -2150,20 +2150,11 @@ varying vec2 v;
 uniform sampler2D u_img;
 uniform vec2 u_src;   // picture size in pixels
 uniform vec2 u_out;   // output size in pixels
-uniform float u_scan, u_curve, u_vig, u_bloom, u_split, u_grid;
+uniform float u_scan, u_vig, u_bloom, u_split, u_grid;
 vec3 pix(vec2 uv) { return texture2D(u_img, (floor(uv * u_src) + 0.5) / u_src).rgb; }
 void main() {
   vec2 uv = v;
   vec2 p0 = uv * 2.0 - 1.0;
-  float mask = 1.0;
-  if (u_curve > 0.0) {
-    // Barrel distortion: the edges bow outwards, and what falls outside the picture is black
-    float k = u_curve * 0.2;
-    vec2 p = p0 * vec2(1.0 + k * p0.y * p0.y, 1.0 + k * p0.x * p0.x);
-    uv = p * 0.5 + 0.5;
-    vec2 e = min(uv, 1.0 - uv);
-    mask = smoothstep(-0.002, 0.004, min(e.x, e.y));
-  }
   uv = clamp(uv, 0.0, 1.0);
   float off = u_split * 0.012;
   vec3 c = vec3(pix(uv - vec2(off, 0.0)).r, pix(uv).g, pix(uv + vec2(off, 0.0)).b);
@@ -2193,7 +2184,7 @@ void main() {
     c *= 1.0 - u_grid * clamp((sc - 2.5) / 3.0, 0.0, 1.0) * line * 0.8;
   }
   c *= 1.0 - u_vig * 0.85 * smoothstep(0.35, 1.5, length(p0));
-  gl_FragColor = vec4(c * mask, 1.0);
+  gl_FragColor = vec4(c, 1.0);
 }`;
 // A renderer on the given canvas: render(picture, width, height, strengths) draws the picture with the effects at that size
 function makeFx(canvas) {
@@ -2216,7 +2207,7 @@ function makeFx(canvas) {
   g.enableVertexAttribArray(a);
   g.vertexAttribPointer(a, 2, g.FLOAT, false, 0, 0);
   const loc = {};
-  for (const n of ['u_img', 'u_src', 'u_out', 'u_scan', 'u_curve', 'u_vig', 'u_bloom', 'u_split', 'u_grid']) loc[n] = g.getUniformLocation(prog, n);
+  for (const n of ['u_img', 'u_src', 'u_out', 'u_scan', 'u_vig', 'u_bloom', 'u_split', 'u_grid']) loc[n] = g.getUniformLocation(prog, n);
   const tex = g.createTexture();
   g.bindTexture(g.TEXTURE_2D, tex);
   for (const [k, v] of [[g.TEXTURE_MIN_FILTER, g.LINEAR], [g.TEXTURE_MAG_FILTER, g.LINEAR], [g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE], [g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE]]) g.texParameteri(g.TEXTURE_2D, k, v);
@@ -2231,7 +2222,7 @@ function makeFx(canvas) {
       g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, g.RGBA, g.UNSIGNED_BYTE, pic);
       g.uniform2f(loc.u_src, pic.width, pic.height);
       g.uniform2f(loc.u_out, W, H);
-      g.uniform1f(loc.u_scan, P.scan); g.uniform1f(loc.u_curve, P.curve); g.uniform1f(loc.u_vig, P.vig);
+      g.uniform1f(loc.u_scan, P.scan); g.uniform1f(loc.u_vig, P.vig);
       g.uniform1f(loc.u_bloom, P.bloom); g.uniform1f(loc.u_split, P.split); g.uniform1f(loc.u_grid, P.grid);
       g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
     }
