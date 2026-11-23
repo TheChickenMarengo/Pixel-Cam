@@ -339,7 +339,7 @@ const conEl = document.getElementById('con'), briEl = document.getElementById('b
 const SAVED = (() => { try { return JSON.parse(localStorage.getItem('pixelcam') || '{}'); } catch (e) { return {}; } })();
 let pal = SAVED.pal || 'gameboy', dither = SAVED.dither !== false, facing = SAVED.facing || 'environment';
 // Screen effects: a strength from 0 to 1 for each (drawn by the overlay near the end of the script)
-const FX_DEFS = [['scan', 'Scanlines'], ['vig', 'Vignette'], ['bloom', 'Glow'], ['split', 'RGB split'], ['grid', 'Pixel grid']];
+const FX_DEFS = [['scan', 'Scanlines'], ['mask', 'Phosphor mask'], ['grid', 'Pixel grid'], ['shape', 'Round pixels'], ['bleed', 'Bleed'], ['bloom', 'Glow'], ['split', 'RGB split'], ['vig', 'Vignette'], ['grain', 'Film grain']];
 const fxParams = {};
 for (const [k] of FX_DEFS) fxParams[k] = Math.min(1, Math.max(0, +((SAVED.fx || {})[k]) || 0));
 let fxStale = true, fxBroken = false; // fxStale: the overlay needs redrawing even though the picture is still
@@ -2138,7 +2138,7 @@ stage.addEventListener('pointercancel', endPointer);
 window.addEventListener('resize', fit);
 
 // ---- Screen effects: drawn by a small WebGL shader at screen size, over the low-res picture ----
-// The picture is sampled in whole pixels, so it stays crisp. Effects: scanlines, vignette, glow, RGB split, pixel grid
+// The picture is sampled in whole pixels, so it stays crisp. Effects: scanlines, phosphor mask, pixel grid, round pixels, bleed, glow, RGB split, vignette, film grain
 const FX_VS = 'attribute vec2 a; varying vec2 v; void main() { v = vec2(a.x * 0.5 + 0.5, 0.5 - a.y * 0.5); gl_Position = vec4(a, 0.0, 1.0); }';
 const FX_FS = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -2150,18 +2150,43 @@ varying vec2 v;
 uniform sampler2D u_img;
 uniform vec2 u_src;   // picture size in pixels
 uniform vec2 u_out;   // output size in pixels
-uniform float u_scan, u_vig, u_bloom, u_split, u_grid;
+uniform float u_scan, u_vig, u_bloom, u_split, u_grid, u_mask, u_shape, u_bleed, u_grain, u_t;
 vec3 pix(vec2 uv) { return texture2D(u_img, (floor(uv * u_src) + 0.5) / u_src).rgb; }
+// The picture at a point, with the red and blue channels pulled apart by the RGB split
+vec3 col(vec2 uv) {
+  float off = u_split * 0.012;
+  return vec3(pix(uv - vec2(off, 0.0)).r, pix(uv).g, pix(uv + vec2(off, 0.0)).b);
+}
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + u_t * 43.7) * 43758.5453); }
 void main() {
   vec2 uv = v;
   vec2 p0 = uv * 2.0 - 1.0;
-  uv = clamp(uv, 0.0, 1.0);
-  float off = u_split * 0.012;
-  vec3 c = vec3(pix(uv - vec2(off, 0.0)).r, pix(uv).g, pix(uv + vec2(off, 0.0)).b);
+  float sc = u_out.x / u_src.x; // output pixels per picture pixel
+  vec3 c = col(uv);
+  if (u_bleed > 0.0) {
+    // Composite-video smear: each pixel's colour trails a few pixels to the right
+    vec2 dx = vec2(1.0 / u_src.x, 0.0);
+    vec3 smear = 0.4 * c + 0.25 * col(uv - dx) + 0.15 * col(uv - 2.0 * dx) + 0.1 * col(uv - 3.0 * dx) + 0.1 * col(uv + dx);
+    c = mix(c, smear, u_bleed);
+  }
+  vec2 f = fract(uv * u_src);
+  if (u_shape > 0.0) {
+    // Round pixels: each picture pixel becomes a soft dot, with dark gaps between the dots
+    float r = mix(0.72, 0.44, u_shape);
+    float w = max(0.5 / sc, 0.03);
+    float m = 1.0 - smoothstep(r - w, r + w, length(f - 0.5));
+    c *= mix(1.0, m, clamp((sc - 1.5) / 2.5, 0.0, 1.0));
+  }
   if (u_scan > 0.0) {
     // The lower part of each picture row is dark, like the gap between scanlines
-    float ph = fract(uv.y * u_src.y);
-    c *= 1.0 - u_scan * 0.6 * smoothstep(0.4, 1.0, ph);
+    c *= 1.0 - u_scan * 0.6 * smoothstep(0.4, 1.0, f.y);
+  }
+  if (u_mask > 0.0) {
+    // A phosphor mask: fine red, green and blue stripes across the screen
+    float period = max(3.0, floor(u_out.x / 200.0));
+    float ph = fract(v.x * u_out.x / period) * 3.0;
+    vec3 tri = vec3(smoothstep(1.2, 0.2, abs(ph - 0.5)), smoothstep(1.2, 0.2, abs(ph - 1.5)), smoothstep(1.2, 0.2, abs(ph - 2.5)));
+    c *= mix(vec3(1.0), (0.3 + 0.7 * tri) * 1.5, u_mask);
   }
   if (u_bloom > 0.0) {
     // Bright parts bleed light into their surroundings: a ring of soft samples, bright areas only
@@ -2176,14 +2201,19 @@ void main() {
   }
   if (u_grid > 0.0) {
     // Thin dark lines between the picture's pixels, fading out when the pixels are too small to show them
-    float sc = u_out.x / u_src.x;
-    vec2 f = fract(uv * u_src);
     vec2 dd = min(f, 1.0 - f);
     float lw = 0.55 / sc;
     float line = 1.0 - smoothstep(lw * 0.6, lw * 1.4 + 0.001, min(dd.x, dd.y));
     c *= 1.0 - u_grid * clamp((sc - 2.5) / 3.0, 0.0, 1.0) * line * 0.8;
   }
   c *= 1.0 - u_vig * 0.85 * smoothstep(0.35, 1.5, length(p0));
+  if (u_grain > 0.0) {
+    // Film grain: fresh noise every frame, strongest in the mid-tones, in grains about half a picture pixel across
+    float cell = max(1.0, floor(sc * 0.5));
+    float n = hash(floor(v * u_out / cell)) - 0.5;
+    float l = dot(c, vec3(0.299, 0.587, 0.114));
+    c += n * u_grain * 0.45 * (1.0 - abs(l - 0.5));
+  }
   gl_FragColor = vec4(c, 1.0);
 }`;
 // A renderer on the given canvas: render(picture, width, height, strengths) draws the picture with the effects at that size
@@ -2207,7 +2237,7 @@ function makeFx(canvas) {
   g.enableVertexAttribArray(a);
   g.vertexAttribPointer(a, 2, g.FLOAT, false, 0, 0);
   const loc = {};
-  for (const n of ['u_img', 'u_src', 'u_out', 'u_scan', 'u_vig', 'u_bloom', 'u_split', 'u_grid']) loc[n] = g.getUniformLocation(prog, n);
+  for (const n of ['u_img', 'u_src', 'u_out', 'u_scan', 'u_vig', 'u_bloom', 'u_split', 'u_grid', 'u_mask', 'u_shape', 'u_bleed', 'u_grain', 'u_t']) loc[n] = g.getUniformLocation(prog, n);
   const tex = g.createTexture();
   g.bindTexture(g.TEXTURE_2D, tex);
   for (const [k, v] of [[g.TEXTURE_MIN_FILTER, g.LINEAR], [g.TEXTURE_MAG_FILTER, g.LINEAR], [g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE], [g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE]]) g.texParameteri(g.TEXTURE_2D, k, v);
@@ -2224,6 +2254,8 @@ function makeFx(canvas) {
       g.uniform2f(loc.u_out, W, H);
       g.uniform1f(loc.u_scan, P.scan); g.uniform1f(loc.u_vig, P.vig);
       g.uniform1f(loc.u_bloom, P.bloom); g.uniform1f(loc.u_split, P.split); g.uniform1f(loc.u_grid, P.grid);
+      g.uniform1f(loc.u_mask, P.mask); g.uniform1f(loc.u_shape, P.shape); g.uniform1f(loc.u_bleed, P.bleed); g.uniform1f(loc.u_grain, P.grain);
+      g.uniform1f(loc.u_t, Math.floor(performance.now() / 42) % 997); // the grain changes about 24 times a second
       g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
     }
   };
