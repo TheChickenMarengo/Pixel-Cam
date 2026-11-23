@@ -29,7 +29,7 @@ button{font:inherit;color:var(--ink);background:#1a241a;border:1px solid var(--e
 button[aria-pressed="true"]{background:var(--accent);color:#0f380f;border-color:var(--accent)}
 button.rec-on{background:#a02020;border-color:#a02020;color:#fff}
 button:disabled{opacity:.4;cursor:default}
-#shoot{width:58px;height:58px;border-radius:50%;background:var(--ink);border:4px solid var(--edge);padding:0}
+#shoot{width:66px;height:66px;border-radius:50%;background:var(--ink);border:4px solid var(--edge);padding:0}
 #shoot:active{transform:scale(.94)}
 #shoot.frozen{background:var(--accent);border-color:var(--accent)}
 input[type=range]{width:100%;accent-color:var(--accent)}
@@ -60,7 +60,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 #drawerBack.on{opacity:1;pointer-events:auto}
 #drawer{position:fixed;left:50%;bottom:0;z-index:20;width:min(100%,560px);background:var(--panel);border:1px solid var(--edge);border-bottom:0;border-radius:14px 14px 0 0;padding:8px 14px calc(14px + env(safe-area-inset-bottom));max-height:78%;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;transform:translate(-50%,105%);transition:transform .25s ease}
 #drawer.open{transform:translate(-50%,0)}
-#drawerHandle{width:44px;height:5px;border-radius:3px;background:var(--edge);flex:0 0 auto;cursor:pointer}
 #drawerTabs{gap:0}
 #drawerTabs button{min-width:110px;border-radius:0}
 #drawerTabs button:first-child{border-radius:6px 0 0 6px}
@@ -80,8 +79,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 /* Bottom row: two buttons, the shutter and two buttons, evenly spaced */
 #bottomRow{display:grid;grid-template-columns:1fr 1fr auto 1fr 1fr;gap:8px;align-items:center;padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--edge);flex:0 0 auto}
 #bottomRow button{padding:0;height:44px;display:flex;align-items:center;justify-content:center}
-#bottomRow #shoot{height:58px}
+#bottomRow #shoot{height:66px}
 #rec .dot,#rec .stop{display:inline-flex}
+#rec .dot{color:#e53030}
 #rec .stop,#rec.rec-on .dot{display:none}
 #rec.rec-on .stop{display:inline-flex}
 #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#000c;color:var(--ink);padding:8px 14px;border-radius:16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;max-width:90%;text-align:center}
@@ -110,7 +110,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </div>
   <div class="row" id="favWrap">
     <div id="favBar"></div>
-    <div class="row"><button id="openStyles" aria-expanded="false">More styles ▴</button><button id="openFilters" aria-expanded="false">Filter ▴</button></div>
+    <div class="row"><button id="openStyles" aria-expanded="false">More styles ▴</button><button id="openFilters" aria-expanded="false">Filter ▴</button><button id="reroll" hidden aria-label="New random colours" title="New random colours" style="padding:7px 10px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14-4M4 4v4h4M4 13a8 8 0 0 0 14 4M20 20v-4h-4"/></svg></button></div>
   </div>
   <div class="row"><button id="adjBtn" aria-pressed="true">Adjust ▴</button></div>
   <div id="adjust">
@@ -122,6 +122,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
   <input type="range" id="bri" min="-100" max="100" step="5" value="0">
+  <div class="row spread"><span class="dim">Gamma</span><span class="dim" id="gamLabel">1.00</span></div>
+  <input type="range" id="gam" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Saturation</span><span class="dim" id="satLabel">1.00</span></div>
   <input type="range" id="sat" min="0" max="2" step="0.05" value="1">
   </div>
@@ -137,7 +139,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <video id="cam" playsinline muted autoplay style="display:none"></video>
 <div id="drawerBack"></div>
 <div id="drawer" aria-hidden="true">
-  <div id="drawerHandle"></div>
   <div class="row" id="drawerTabs"><button data-tab="styles" aria-pressed="true">Styles</button><button data-tab="filters" aria-pressed="false">Filters</button></div>
   <span class="dim" id="drawerHint">Long-press a style to pin it</span>
   <div id="pals">
@@ -275,7 +276,7 @@ const recBtn = document.getElementById('rec');
 const saveBtn = document.getElementById('save');
 const shootBtn = document.getElementById('shoot');
 const flash = document.getElementById('flash');
-const conEl = document.getElementById('con'), briEl = document.getElementById('bri'), satEl = document.getElementById('sat');
+const conEl = document.getElementById('con'), briEl = document.getElementById('bri'), satEl = document.getElementById('sat'), gamEl = document.getElementById('gam');
 
 // Settings are remembered on this device when storage is available
 const SAVED = (() => { try { return JSON.parse(localStorage.getItem('pixelcam') || '{}'); } catch (e) { return {}; } })();
@@ -302,16 +303,18 @@ function cropFor(sw, sh) {
 }if (SAVED.con) document.getElementById('con').value = SAVED.con;
 if (SAVED.bri) document.getElementById('bri').value = SAVED.bri;
 if (SAVED.sat) document.getElementById('sat').value = SAVED.sat;
+if (SAVED.gam) document.getElementById('gam').value = SAVED.gam;
 // Show the restored values on the labels too
 document.getElementById('conLabel').textContent = (+document.getElementById('con').value).toFixed(2);
 document.getElementById('briLabel').textContent = document.getElementById('bri').value;
 document.getElementById('satLabel').textContent = (+document.getElementById('sat').value).toFixed(2);
+document.getElementById('gamLabel').textContent = (+document.getElementById('gam').value).toFixed(2);
 function writeSettings() {
   try { localStorage.setItem('pixelcam', JSON.stringify({
     pal, dither, facing, filter: filterName,
     res: resIsAsc ? pxRes : res.value, asc: resIsAsc ? res.value : ascCols,
     charset: asciiSet, aspect: aspectKey,
-    con: conEl.value, bri: briEl.value, sat: satEl.value, favs: [...favs]
+    con: conEl.value, bri: briEl.value, sat: satEl.value, gam: gamEl.value, favs: [...favs]
   })); } catch (e) {}
 }
 // Settings are written after a short pause, so dragging a slider doesn't write on every move
@@ -367,16 +370,20 @@ function nearestCached(name, list, r, g, b) {
   return k;
 }
 
-// Contrast around mid-grey, brightness offset, then saturation
+// Gamma, contrast around mid-grey, brightness offset, then saturation
 function adjust(d) {
   const c = +conEl.value;
   const b = +briEl.value;
   const s = +satEl.value;
-  if (c === 1 && b === 0 && s === 1) return;
+  const gm = +gamEl.value;
+  if (c === 1 && b === 0 && s === 1 && gm === 1) return;
+  // Gamma first, through a lookup table: above 1 lifts the midtones, below 1 darkens them
+  const gmLut = new Uint8ClampedArray(256);
+  for (let v = 0; v < 256; v++) gmLut[v] = 255 * Math.pow(v / 255, 1 / gm) + 0.5;
   for (let i = 0; i < d.length; i += 4) {
-    const r = (d[i] - 128) * c + 128 + b;
-    const g = (d[i+1] - 128) * c + 128 + b;
-    const bl = (d[i+2] - 128) * c + 128 + b;
+    const r = (gmLut[d[i]] - 128) * c + 128 + b;
+    const g = (gmLut[d[i+1]] - 128) * c + 128 + b;
+    const bl = (gmLut[d[i+2]] - 128) * c + 128 + b;
     const L = 0.299 * r + 0.587 * g + 0.114 * bl;
     d[i]   = L + (r - L) * s;
     d[i+1] = L + (g - L) * s;
@@ -1289,7 +1296,7 @@ precision mediump float;
 uniform sampler2D u_img;
 uniform sampler2D u_lut;
 uniform vec2 u_size;
-uniform float u_con, u_bri, u_sat;
+uniform float u_con, u_bri, u_sat, u_gam;
 uniform int u_mode;        // 0 none, 1 ramp, 2 nearest colour
 uniform int u_n;
 uniform vec3 u_pal[64];    // 0-255 units
@@ -1302,7 +1309,8 @@ void main() {
   float x = floor(gl_FragCoord.x);
   float y = u_size.y - 1.0 - floor(gl_FragCoord.y); // row 0 is the top, as on the canvas
   vec3 c = floor(texture2D(u_img, vec2((x + 0.5) / u_size.x, (y + 0.5) / u_size.y)).rgb * 255.0 + 0.5);
-  // Contrast, brightness, saturation, as adjust() does on the CPU
+  // Gamma, contrast, brightness, saturation, as adjust() does on the CPU
+  c = floor(255.0 * pow(c / 255.0, vec3(1.0 / u_gam)) + 0.5);
   vec3 r = (c - 128.0) * u_con + 128.0 + u_bri;
   float L = dot(r, lum3);
   c = clamp(floor(L + (r - L) * u_sat + 0.5), 0.0, 255.0);
@@ -1375,7 +1383,7 @@ function initGL() {
   const a = gl.getAttribLocation(glProg, 'a');
   gl.enableVertexAttribArray(a);
   gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['u_img', 'u_lut', 'u_size', 'u_con', 'u_bri', 'u_sat', 'u_mode', 'u_n', 'u_pal', 'u_bsize', 'u_mat', 'u_dither', 'u_hasLut']) {
+  for (const n of ['u_img', 'u_lut', 'u_size', 'u_con', 'u_bri', 'u_sat', 'u_gam', 'u_mode', 'u_n', 'u_pal', 'u_bsize', 'u_mat', 'u_dither', 'u_hasLut']) {
     glLoc[n] = gl.getUniformLocation(glProg, n);
   }
   gl.uniform1i(glLoc.u_img, 0);
@@ -1416,6 +1424,7 @@ function gpuFrame(w, h) {
   gl.uniform1f(glLoc.u_con, +conEl.value);
   gl.uniform1f(glLoc.u_bri, +briEl.value);
   gl.uniform1f(glLoc.u_sat, +satEl.value);
+  gl.uniform1f(glLoc.u_gam, +gamEl.value);
   gl.uniform1i(glLoc.u_mode, mode);
   gl.uniform1i(glLoc.u_dither, dither ? 1 : 0);
   gl.uniform1i(glLoc.u_hasLut, filterLut ? 1 : 0);
@@ -1573,7 +1582,6 @@ document.getElementById('openFilters').addEventListener('click', () => openDrawe
 document.querySelectorAll('#drawerTabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 document.getElementById('closeStyles').addEventListener('click', closeDrawer);
 drawerBack.addEventListener('click', closeDrawer);
-document.getElementById('drawerHandle').addEventListener('click', closeDrawer);
 
 // Crop ratio for the picture
 document.querySelectorAll('#aspect button').forEach(b => {
@@ -1604,7 +1612,7 @@ document.querySelectorAll('#sizes button').forEach(b => b.addEventListener('clic
 }));
 
 // Double-tap a slider to put it back to its default. Dragging does not count as a tap.
-[res, conEl, briEl, satEl].forEach(el => {
+[res, conEl, briEl, satEl, gamEl].forEach(el => {
   let startX = 0, startY = 0, lastTap = 0;
   el.addEventListener('pointerdown', e => { startX = e.clientX; startY = e.clientY; });
   el.addEventListener('pointerup', e => {
@@ -1623,6 +1631,7 @@ document.querySelectorAll('#sizes button').forEach(b => b.addEventListener('clic
 function updateFilterBtn() {
   const b = document.querySelector(`#filters button[data-filter="${filterName}"]`);
   document.getElementById('openFilters').textContent = (filterName === 'none' || !b ? 'Filter' : b.textContent) + ' ▴';
+  document.getElementById('reroll').hidden = filterName !== 'random';
 }
 updateFilterBtn();
 document.querySelectorAll('#filters button').forEach(b => {
@@ -1636,6 +1645,11 @@ document.querySelectorAll('#filters button').forEach(b => {
     closeDrawer();
     persist();
   });
+});
+
+document.getElementById('reroll').addEventListener('click', () => {
+  FILTERS.random = randomGradientLut();
+  filterLut = FILTERS.random;
 });
 
 function setDitherLabel() { const t = 'Dither ' + (dither ? 'on' : 'off'); ditherBtn.title = t; ditherBtn.setAttribute('aria-label', t); ditherBtn.setAttribute('aria-pressed', String(dither)); }
@@ -1655,6 +1669,9 @@ document.getElementById('bri').addEventListener('input', e => {
 });
 document.getElementById('sat').addEventListener('input', e => {
   document.getElementById('satLabel').textContent = (+e.target.value).toFixed(2); persist();
+});
+document.getElementById('gam').addEventListener('input', e => {
+  document.getElementById('gamLabel').textContent = (+e.target.value).toFixed(2); persist();
 });
 
 flipBtn.addEventListener('click', () => {
