@@ -101,7 +101,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
   <div class="row" id="aspect"><button data-aspect="original" aria-pressed="false">Original</button><button data-aspect="4x3" aria-pressed="false">4:3</button><button data-aspect="3x2" aria-pressed="false">3:2</button><button data-aspect="16x9" aria-pressed="false">16:9</button><button data-aspect="3x4" aria-pressed="false">3:4</button><button data-aspect="2x3" aria-pressed="false">2:3</button><button data-aspect="9x16" aria-pressed="false">9:16</button></div>
-  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button><button data-set="hiragana" aria-pressed="false">Hiragana</button><button data-set="greek" aria-pressed="false">Greek</button><button data-set="arabic" aria-pressed="false">Arabic</button><button data-set="hindi" aria-pressed="false">Hindi</button><button data-set="sanskrit" aria-pressed="false">Sanskrit</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
+  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button><button data-set="hiragana" aria-pressed="false">Hiragana</button><button data-set="greek" aria-pressed="false">Greek</button><button data-set="arabic" aria-pressed="false">Arabic</button><button data-set="hindi" aria-pressed="false">Hindi</button><button data-set="sanskrit" aria-pressed="false">Sanskrit</button><button data-set="braille" aria-pressed="false">Braille</button><button data-set="katakana" aria-pressed="false">Katakana</button><button data-set="hangul" aria-pressed="false">Hangul</button><button data-set="cyrillic" aria-pressed="false">Cyrillic</button><button data-set="hebrew" aria-pressed="false">Hebrew</button><button data-set="chinese" aria-pressed="false">Chinese</button><button data-set="runes" aria-pressed="false">Runes</button><button data-set="math" aria-pressed="false">Math</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
   <input type="range" id="bri" min="-100" max="100" step="5" value="0">
@@ -636,6 +636,16 @@ const ASCII_SETS = {
   letters: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
   symbols: ' .,:;\'"`-_~+=*^!?|/\\<>()[]{}#%&$@',
   hiragana: ' あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん',
+  // Braille: all 255 dot patterns, so the tones are very smooth
+  braille: [' ', ...Array.from({length: 255}, (_, i) => String.fromCharCode(0x2801 + i))],
+  katakana: ' アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ',
+  hangul: ' ㅇㄱㄴㄷㄹㅁㅂㅅㅈㅊㅋㅌㅍㅎ가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허고노도로모보소오조초코토포호구누두루무부수우주추쿠투푸후그느드르므브스으즈츠크트프흐기니디리미비시이지치키티피히한글',
+  cyrillic: ' абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ',
+  hebrew: ' אבגדהוזחטיכךלמםנןסעפףצץקרשת',
+  // Chinese: from a single stroke up to very dense characters
+  chinese: ' 一二三十人入八大小上下土口日月山木水火田中手心目白石立光明林国学空風馬魚鳥雨電道書森愛龍鬱響難',
+  runes: ' ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ',
+  math: ' ·+−×÷=≠≈±<>≤≥∞∑∏∫∂∇√∮∈∉∪∩⊂⊃∀∃∅∧∨¬⊕⊗≡∝∴∵ℝℕℤℚℂ',
   greek: ' αβγδεζηθικλμνξοπρσςτυφχψωΓΔΘΛΞΠΣΦΨΩ',
   arabic: ' ابتثجحخدذرزسشصضطظعغفقكلمنهويءأإآؤئةى٠١٢٣٤٥٦٧٨٩ﻻ',
   // Hindi: whole letters, with nukta forms, common conjuncts, a few vowel signs and digits. Written as a list because a
