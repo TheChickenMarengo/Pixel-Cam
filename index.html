@@ -36,7 +36,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .dim{color:var(--dim);font-size:12px}
 #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .2s}
 #flash.on{opacity:.8;transition:none}
-#view{transform-origin:center center}
+#frame{position:relative;line-height:0;flex:0 0 auto;transform-origin:center center}
+#fx{position:absolute;inset:0;width:100%;height:100%;display:none}
 #stage{touch-action:none}
 #adjBtn[aria-pressed="true"]{background:var(--accent);color:#0f380f;border-color:var(--accent)}
 [hidden]{display:none!important}
@@ -108,7 +109,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 </head>
 <body>
 <div id="stage">
-  <canvas id="view"></canvas>
+  <div id="frame"><canvas id="view"></canvas><canvas id="fx"></canvas></div>
   <div id="msg"></div>
   <div id="styleName"></div>
   <button id="backLive" hidden>✕ Back to live</button>
@@ -129,13 +130,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </div>
   <div class="row"><button id="adjBtn" aria-pressed="true">Adjust ▴</button></div>
   <div id="adjust">
-  <div class="row" id="adjTabs"><button data-adj="pixels" aria-pressed="true">Pixels</button><button data-adj="tone" aria-pressed="false">Tone</button><button data-adj="text" aria-pressed="false" id="adjTextTab">Text</button></div>
+  <div class="row" id="adjTabs"><button data-adj="pixels" aria-pressed="true">Pixels</button><button data-adj="tone" aria-pressed="false">Tone</button><button data-adj="screen" aria-pressed="false" id="adjScreenTab">Screen</button><button data-adj="text" aria-pressed="false" id="adjTextTab">Text</button></div>
   <div class="adjsec" id="adjPixels">
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
   <div class="row" id="aspect"><button data-aspect="original" aria-pressed="false">Original</button><button data-aspect="4x3" aria-pressed="false">4:3</button><button data-aspect="3x2" aria-pressed="false">3:2</button><button data-aspect="16x9" aria-pressed="false">16:9</button><button data-aspect="3x4" aria-pressed="false">3:4</button><button data-aspect="2x3" aria-pressed="false">2:3</button><button data-aspect="9x16" aria-pressed="false">9:16</button></div>
   </div>
+  <div class="adjsec" id="adjScreen" hidden></div>
   <div class="adjsec" id="adjText" hidden>
   <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button><button data-set="hiragana" aria-pressed="false">Hiragana</button><button data-set="greek" aria-pressed="false">Greek</button><button data-set="arabic" aria-pressed="false">Arabic</button><button data-set="hindi" aria-pressed="false">Hindi</button><button data-set="sanskrit" aria-pressed="false">Sanskrit</button><button data-set="braille" aria-pressed="false">Braille</button><button data-set="katakana" aria-pressed="false">Katakana</button><button data-set="hangul" aria-pressed="false">Hangul</button><button data-set="cyrillic" aria-pressed="false">Cyrillic</button><button data-set="hebrew" aria-pressed="false">Hebrew</button><button data-set="chinese" aria-pressed="false">Chinese</button><button data-set="runes" aria-pressed="false">Runes</button><button data-set="math" aria-pressed="false">Math</button></div>
   </div>
@@ -169,9 +171,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="group"><div class="gname">Basics</div><div class="grid"><button data-pal="original" aria-pressed="false">Original</button><button data-pal="mono" aria-pressed="false">1-bit</button><button data-pal="mono2" aria-pressed="false">1-bit Diffuse</button><button data-pal="atkinson" aria-pressed="false">1-bit Atkinson</button><button data-pal="bluen" aria-pressed="false">Blue noise</button><button data-pal="dot" aria-pressed="false">Dot matrix</button></div></div>
     <div class="group"><div class="gname">Handhelds</div><div class="grid"><button data-pal="gameboy" aria-pressed="false">Game Boy</button><button data-pal="gbc" aria-pressed="false">GB Colour</button><button data-pal="pocket" aria-pressed="false">GB Pocket</button><button data-pal="vb" aria-pressed="false">Virtual Boy</button><button data-pal="nokia" aria-pressed="false">Nokia 3310</button><button data-pal="lynx" aria-pressed="false">Atari Lynx</button></div></div>
     <div class="group"><div class="gname">Consoles</div><div class="grid"><button data-pal="nes" aria-pressed="false">NES</button><button data-pal="sms" aria-pressed="false">Master System</button><button data-pal="md" aria-pressed="false">Mega Drive</button><button data-pal="atari" aria-pressed="false">Atari 2600</button><button data-pal="pico8" aria-pressed="false">Pico-8</button></div></div>
-    <div class="group"><div class="gname">Computers</div><div class="grid"><button data-pal="dos" aria-pressed="false">DOS</button><button data-pal="cga" aria-pressed="false">CGA</button><button data-pal="c64" aria-pressed="false">C64</button><button data-pal="c64mc" aria-pressed="false">C64 Multi</button><button data-pal="zx" aria-pressed="false">ZX Spectrum</button><button data-pal="zxr" aria-pressed="false">ZX Spectrum-R</button><button data-pal="cpc" aria-pressed="false">Amstrad CPC</button><button data-pal="amiga" aria-pressed="false">Amiga 500</button><button data-pal="st" aria-pressed="false">Atari ST</button><button data-pal="apple" aria-pressed="false">Apple II</button></div></div>
+    <div class="group"><div class="gname">Computers</div><div class="grid"><button data-pal="dos" aria-pressed="false">DOS</button><button data-pal="cga" aria-pressed="false">CGA</button><button data-pal="c64" aria-pressed="false">C64</button><button data-pal="c64mc" aria-pressed="false">C64 Multi</button><button data-pal="zx" aria-pressed="false">ZX Spectrum</button><button data-pal="zxr" aria-pressed="false">ZX Spectrum-R</button><button data-pal="cpc" aria-pressed="false">Amstrad CPC</button><button data-pal="amiga" aria-pressed="false">Amiga 500</button><button data-pal="st" aria-pressed="false">Atari ST</button><button data-pal="apple" aria-pressed="false">Apple II</button><button data-pal="ham" aria-pressed="false">Amiga HAM</button><button data-pal="tandy" aria-pressed="false">Tandy</button><button data-pal="bbc" aria-pressed="false">BBC Micro</button><button data-pal="msx" aria-pressed="false">MSX / Coleco</button><button data-pal="web" aria-pressed="false">Web-safe</button></div></div>
     <div class="group"><div class="gname">Screens and tape</div><div class="grid"><button data-pal="vhs" aria-pressed="false">VHS</button><button data-pal="green" aria-pressed="false">Green screen</button><button data-pal="amber" aria-pressed="false">Amber screen</button></div></div>
-    <div class="group"><div class="gname">Text</div><div class="grid"><button data-pal="ascii" aria-pressed="false">ASCII</button><button data-pal="asciic" aria-pressed="false">Colour ASCII</button><button data-pal="zzt" aria-pressed="false">ZZT</button><button data-pal="zztw" aria-pressed="false">ZZT Wide</button><button data-pal="zzr" aria-pressed="false">ZZT-R</button><button data-pal="zztwr" aria-pressed="false">ZZT Wide-R</button></div></div>
+    <div class="group"><div class="gname">Text</div><div class="grid"><button data-pal="ascii" aria-pressed="false">ASCII</button><button data-pal="asciic" aria-pressed="false">Colour ASCII</button><button data-pal="zzt" aria-pressed="false">ZZT</button><button data-pal="zztw" aria-pressed="false">ZZT Wide</button><button data-pal="zzr" aria-pressed="false">ZZT-R</button><button data-pal="zztwr" aria-pressed="false">ZZT Wide-R</button><button data-pal="tele" aria-pressed="false">Teletext</button><button data-pal="pet" aria-pressed="false">PETSCII</button><button data-pal="pets" aria-pressed="false">PETSCII Strict</button></div></div>
   </div>
   <div id="filters" hidden>
     <button data-filter="none" aria-pressed="true">No filter</button>
@@ -187,6 +189,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-filter="blueprint" aria-pressed="false">Blueprint</button>
     <button data-filter="riso" aria-pressed="false">Risograph</button>
     <button data-filter="nightvision" aria-pressed="false">Night vision</button>
+    <button data-filter="technicolor" aria-pressed="false">Technicolour</button>
+    <button data-filter="cross" aria-pressed="false">Cross process</button>
+    <button data-filter="invert" aria-pressed="false">Invert</button>
+    <button data-filter="posterise" aria-pressed="false">Posterise</button>
     <button data-filter="random" aria-pressed="false">Random</button>
   </div>
   <button id="closeStyles">Close</button>
@@ -236,6 +242,12 @@ const PALETTES = {
   vb: {mode:'ramp', colours:['#000000','#4a0000','#a00000','#ff1a1a']},
   // Nokia 3310: four greys on the pale green LCD
   nokia: {mode:'ramp', colours:['#1d2a1d','#4d5e4a','#8a9a7c','#c4d2b0']},
+  // Tandy 1000: the 16 colours of the CGA family, at 160 px wide
+  tandy: {mode:'nearest', colours:['#000000','#0000aa','#00aa00','#00aaaa','#aa0000','#aa00aa','#aa5500','#aaaaaa','#555555','#5555ff','#55ff55','#55ffff','#ff5555','#ff55ff','#ffff55','#ffffff']},
+  // BBC Micro: the eight pure colours, from its 160 px wide Mode 2
+  bbc: {mode:'nearest', colours:['#000000','#ff0000','#00ff00','#ffff00','#0000ff','#ff00ff','#00ffff','#ffffff']},
+  // MSX and ColecoVision: the 15 colours of the TMS9918 video chip, at 256 px wide
+  msx: {mode:'nearest', colours:['#000000','#3eb849','#74d07d','#5955e0','#8076f1','#b95e51','#65dbef','#db6559','#ff897d','#ccc35e','#ded087','#3aa241','#b766b5','#cccccc','#ffffff']},
   // Monochrome phosphor screens
   green: {mode:'ramp', colours:['#001400','#0f5a0f','#22aa22','#66ff66']},
   amber: {mode:'ramp', colours:['#140800','#663300','#cc7a00','#ffb000']}
@@ -268,6 +280,12 @@ const FILTERS = {
   blueprint: gradientLut(['#0a2a6a', '#2a5aa8', '#7aa8e0', '#ffffff']),
   riso: gradientLut(['#1a1a1a', '#2a7fff', '#ff48b0', '#f4efe6']),
   nightvision: gradientLut(['#000000', '#03260a', '#1a7a24', '#57ff5a', '#e8ffe8']),
+  // Two-strip Technicolor: strong, warm reds and clean cyan-greens with rich contrast
+  technicolor: curveLut(t => sCurve(Math.pow(t, 0.92), 0.7), t => sCurve(t, 0.45), t => sCurve(Math.pow(t, 1.1), 0.7) * 0.97),
+  // Cross processing: hard red and green curves, and a blue that is lifted in the shadows and held back in the highlights
+  cross: curveLut(t => sCurve(t, 1.3), t => sCurve(t, 0.6) * 0.96 + 0.04, t => 0.13 + 0.74 * t),
+  invert: curveLut(t => 1 - t, t => 1 - t, t => 1 - t),
+  posterise: curveLut(t => Math.round(t * 3) / 3, t => Math.round(t * 3) / 3, t => Math.round(t * 3) / 3),
   random: null // set by randomGradientLut() each time the button is tapped
 };
 FILTERS.random = randomGradientLut();
@@ -277,8 +295,22 @@ function randomGradientLut() {
   stops.sort((a, b) => { const p = hexRgb(a), q = hexRgb(b); return (0.299*p[0] + 0.587*p[1] + 0.114*p[2]) - (0.299*q[0] + 0.587*q[1] + 0.114*q[2]); });
   return gradientLut(stops);
 }
-// Applies a filter in place, using each pixel's brightness
-function applyFilter(d, lut) {
+// Colour filters that work on each channel's own curve instead of the brightness: one 256-entry curve per channel,
+// stored the same way as a gradient (entry v holds the red, green and blue results for an input of v)
+function curveLut(r, g, b) {
+  const lut = new Uint8ClampedArray(768);
+  for (let v = 0; v < 256; v++) { const t = v / 255; lut[v*3] = r(t) * 255; lut[v*3+1] = g(t) * 255; lut[v*3+2] = b(t) * 255; }
+  return lut;
+}
+// An S-shaped contrast curve: 0 leaves the value alone, 1 is a full smoothstep, more is harder
+function sCurve(t, k) { return t + k * (t * t * (3 - 2 * t) - t); }
+const FILTER_RGB = new Set(['technicolor', 'cross', 'invert', 'posterise']);
+// Applies a filter in place. Gradient filters use each pixel's brightness; channel filters (rgb) use each channel's own curve
+function applyFilter(d, lut, rgb) {
+  if (rgb) {
+    for (let i = 0; i < d.length; i += 4) { d[i] = lut[d[i] * 3]; d[i+1] = lut[d[i+1] * 3 + 1]; d[i+2] = lut[d[i+2] * 3 + 2]; }
+    return;
+  }
   for (let i = 0; i < d.length; i += 4) {
     const j = ((0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) | 0) * 3;
     d[i] = lut[j]; d[i+1] = lut[j+1]; d[i+2] = lut[j+2];
@@ -289,6 +321,7 @@ const view = document.getElementById('view');
 const vctx = view.getContext('2d', {willReadFrequently: true});
 const cam = document.getElementById('cam');
 const stage = document.getElementById('stage');
+const frameEl = document.getElementById('frame');
 const msg = document.getElementById('msg');
 const res = document.getElementById('res');
 const resLabel = document.getElementById('resLabel');
@@ -305,9 +338,14 @@ const conEl = document.getElementById('con'), briEl = document.getElementById('b
 // Settings are remembered on this device when storage is available
 const SAVED = (() => { try { return JSON.parse(localStorage.getItem('pixelcam') || '{}'); } catch (e) { return {}; } })();
 let pal = SAVED.pal || 'gameboy', dither = SAVED.dither !== false, facing = SAVED.facing || 'environment';
+// Screen effects: a strength from 0 to 1 for each (drawn by the overlay near the end of the script)
+const FX_DEFS = [['scan', 'Scanlines'], ['curve', 'CRT curve'], ['vig', 'Vignette'], ['bloom', 'Glow'], ['split', 'RGB split'], ['grid', 'Pixel grid']];
+const fxParams = {};
+for (const [k] of FX_DEFS) fxParams[k] = Math.min(1, Math.max(0, +((SAVED.fx || {})[k]) || 0));
+let fxStale = true, fxBroken = false; // fxStale: the overlay needs redrawing even though the picture is still
 let dirty = true; // a frozen photo is only reprocessed when this is set
 let filterName = (SAVED.filter in FILTERS) ? SAVED.filter : 'none';
-let filterLut = FILTERS[filterName];
+let filterLut = FILTERS[filterName], filterRgb = FILTER_RGB.has(filterName);
 // The resolution slider works in pixels for most styles and in text columns for the ASCII styles.
 // Each mode remembers its own value.
 const ASCII_COLS = {min: 20, max: 120, step: 10, def: 120};
@@ -339,7 +377,7 @@ function writeSettings() {
     pal, dither, facing, filter: filterName,
     res: resIsAsc ? pxRes : res.value, asc: resIsAsc ? res.value : ascCols,
     charset: asciiSet, aspect: aspectKey,
-    con: conEl.value, bri: briEl.value, sat: satEl.value, gam: gamEl.value, favs: [...favs]
+    con: conEl.value, bri: briEl.value, sat: satEl.value, gam: gamEl.value, fx: fxParams, favs: [...favs]
   })); } catch (e) {}
 }
 // Settings are written after a short pause, so dragging a slider doesn't write on every move
@@ -364,7 +402,7 @@ function updateAdjTabs() {
 }
 // Switch the resolution slider between pixels and columns when the style changes
 function setResMode() {
-  const a = pal === 'ascii' || pal === 'asciic' || isZzt(pal);
+  const a = isColsStyle(pal);
   updateAdjTabs();
   if (a === resIsAsc) return;
   if (resIsAsc === true) ascCols = +res.value; else if (resIsAsc === false) pxRes = +res.value;
@@ -650,6 +688,7 @@ function fit() {
   if (s >= 1) s = Math.floor(s);
   view.style.width = (view.width * s) + 'px';
   view.style.height = (view.height * s) + 'px';
+  fxStale = true;
 }
 
 // Shutter freezes the current frame so it can be edited; press again to return to live
@@ -854,7 +893,7 @@ function cellFrame(src, sw, sh) {
   }
   if (filterLut) {
     const im = vctx.getImageData(0, 0, W, H);
-    applyFilter(im.data, filterLut);
+    applyFilter(im.data, filterLut, filterRgb);
     vctx.putImageData(im, 0, 0);
   }
   setResText(cols + ' cols');
@@ -913,6 +952,43 @@ function atariLynx(d, w, h) {
     }
     const c = lynxPal[best];
     d[i] = c[0]; d[i+1] = c[1]; d[i+2] = c[2];
+  }
+}
+
+// Amiga HAM6: 16 base colours plus "hold and modify". Each pixel either takes a base colour, or keeps the previous pixel's
+// colour and changes just one channel (4 bits). It gives 4096 colours, and the colour smears along each line after a sharp edge.
+// The base colours are the 16 most common in the picture, re-chosen every 15 frames
+let hamPal = null, hamTick = 0;
+function amigaHam(d, w, h) {
+  if (!hamPal || hamTick++ % 15 === 0) {
+    const hist = new Uint32Array(4096);
+    for (let i = 0; i < d.length; i += 4) hist[(q4(d[i]) << 8) | (q4(d[i+1]) << 4) | q4(d[i+2])]++;
+    const top = [];
+    for (let k = 0; k < 4096; k++) if (hist[k]) top.push(k);
+    top.sort((a, b) => hist[b] - hist[a]);
+    hamPal = top.slice(0, 16).map(k => [(k >> 8) * 17, ((k >> 4) & 15) * 17, (k & 15) * 17]);
+  }
+  for (let y = 0; y < h; y++) {
+    let pr = hamPal[0][0], pg = hamPal[0][1], pb = hamPal[0][2]; // each line starts from the first base colour
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const r = d[i], g = d[i+1], b = d[i+2];
+      let bd = Infinity, nr = pr, ng = pg, nb = pb;
+      for (let p = 0; p < hamPal.length; p++) {
+        const c = hamPal[p];
+        const dd = (r - c[0]) ** 2 + (g - c[1]) ** 2 + (b - c[2]) ** 2;
+        if (dd < bd) { bd = dd; nr = c[0]; ng = c[1]; nb = c[2]; }
+      }
+      const mr = q4(r) * 17, mg = q4(g) * 17, mb = q4(b) * 17;
+      let dd = (mr - r) ** 2 + (pg - g) ** 2 + (pb - b) ** 2;
+      if (dd < bd) { bd = dd; nr = mr; ng = pg; nb = pb; }
+      dd = (pr - r) ** 2 + (mg - g) ** 2 + (pb - b) ** 2;
+      if (dd < bd) { bd = dd; nr = pr; ng = mg; nb = pb; }
+      dd = (pr - r) ** 2 + (pg - g) ** 2 + (mb - b) ** 2;
+      if (dd < bd) { bd = dd; nr = pr; ng = pg; nb = mb; }
+      pr = nr; pg = ng; pb = nb;
+      d[i] = pr; d[i+1] = pg; d[i+2] = pb;
+    }
   }
 }
 
@@ -1029,6 +1105,8 @@ function zztShow(P) {
   return p.map(k => P[k]);
 }
 function isZzt(p) { return p === 'zzt' || p === 'zztw' || p === 'zzr' || p === 'zztwr'; }
+// Styles whose resolution is counted in text columns, not pixels
+function isColsStyle(p) { return p === 'ascii' || p === 'asciic' || isZzt(p) || p === 'tele' || p === 'pet' || p === 'pets'; }
 function zztFrame(src, sw, sh, P = ZZT_EGA, shuffle = false) {
   if (!zztSrc) zztSrc = document.createElement('canvas');
   const crop = cropFor(sw, sh);
@@ -1044,6 +1122,7 @@ function zztFrame(src, sw, sh, P = ZZT_EGA, shuffle = false) {
   zc.drawImage(src, crop.sx, crop.sy, crop.cw, crop.ch, 0, 0, gc, gr);
   zc.restore();
   const px = zc.getImageData(0, 0, gc, gr).data;
+  adjust(px); // contrast, brightness, gamma and saturation apply here too
   const W = cols * ZZT_CW, H = rows * ZZT_CH;
   if (view.width !== W || view.height !== H) { view.width = W; view.height = H; fit(); }
   if (!zztBuf || zztBuf.length !== W * H * 4) {
@@ -1077,6 +1156,205 @@ function zztFrame(src, sw, sh, P = ZZT_EGA, shuffle = false) {
     }
   }
   vctx.putImageData(new ImageData(buf, W, H), 0, 0);
+  setResText(cols + ' cols');
+}
+
+// Teletext and PETSCII: text-screen styles. Each character cell is judged from a small grid of samples of the picture
+const cellSampCv = document.createElement('canvas');
+// Draws the picture (cropped, mirrored for the front camera) into a grid of nx x ny samples per character cell
+function sampleCells(src, sw, sh, cols, nx, ny, cw, ch) {
+  const crop = cropFor(sw, sh);
+  const rows = Math.max(1, Math.round(cols / crop.ratio * cw / ch));
+  const gc = cols * nx, gr = rows * ny;
+  sized(cellSampCv, gc, gr);
+  const c = cellSampCv.getContext('2d', {willReadFrequently: true});
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.save();
+  if (facing === 'user') { c.translate(gc, 0); c.scale(-1, 1); }
+  c.drawImage(src, crop.sx, crop.sy, crop.cw, crop.ch, 0, 0, gc, gr);
+  c.restore();
+  const data = c.getImageData(0, 0, gc, gr).data;
+  adjust(data);
+  const W = cols * cw, H = rows * ch;
+  if (view.width !== W || view.height !== H) { view.width = W; view.height = H; fit(); }
+  return { data, gc, gr, rows, W, H };
+}
+let textBuf = null;
+// A pixel buffer for the view, kept between frames
+function textBuffer(W, H) {
+  if (!textBuf || textBuf.length !== W * H * 4) {
+    textBuf = new Uint8ClampedArray(W * H * 4);
+    for (let i = 3; i < textBuf.length; i += 4) textBuf[i] = 255;
+  }
+  return textBuf;
+}
+
+// Teletext (Ceefax): eight colours, and each character is a 2x3 block mosaic in one foreground and one background colour.
+// Up to 80 columns (the real thing is 40)
+const TELE_RGB = [[0,0,0],[255,0,0],[0,255,0],[255,255,0],[0,0,255],[255,0,255],[0,255,255],[255,255,255]]; // bit 0 red, bit 1 green, bit 2 blue
+const TELE_CW = 6, TELE_CH = 9;
+function teleFrame(src, sw, sh) {
+  const cols = Math.min(+res.value, 80);
+  const g = sampleCells(src, sw, sh, cols, 2, 3, TELE_CW, TELE_CH);
+  const buf = textBuffer(g.W, g.H), d = g.data;
+  const q = new Uint8Array(6), cnt = new Uint8Array(8);
+  for (let cy = 0; cy < g.rows; cy++) for (let cx = 0; cx < cols; cx++) {
+    for (let k = 0; k < 6; k++) {
+      const sx = cx * 2 + (k & 1), sy = cy * 3 + (k >> 1);
+      const i = (sy * g.gc + sx) * 4;
+      // Boost the colour so muted camera colours reach a primary, then threshold each channel (with a little ordered dither)
+      const l = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+      const t = 128 + (dither ? (BAYER[((sy & 3) << 2) | (sx & 3)] / 16 - 0.5) * 70 : 0);
+      q[k] = (l + 1.8 * (d[i] - l) > t ? 1 : 0) | (l + 1.8 * (d[i+1] - l) > t ? 2 : 0) | (l + 1.8 * (d[i+2] - l) > t ? 4 : 0);
+      cnt[q[k]]++;
+    }
+    // Background: the commonest colour; foreground: the commonest other colour (ties go to the lower colour)
+    let bg = q[0];
+    for (let k = 1; k < 6; k++) { const c = q[k]; if (cnt[c] > cnt[bg] || (cnt[c] === cnt[bg] && c < bg)) bg = c; }
+    let fg = bg, n = 0;
+    for (let k = 0; k < 6; k++) { const c = q[k]; if (c !== bg && (n === 0 || cnt[c] > cnt[fg] || (cnt[c] === cnt[fg] && c < fg))) { fg = c; n = cnt[c]; } }
+    const B = TELE_RGB[bg], F = TELE_RGB[fg];
+    for (let k = 0; k < 6; k++) {
+      // A sample of a third colour goes to whichever of the two it is nearer
+      const c = q[k], on = fg !== bg && (c === fg || (c !== bg && popcount3(c ^ fg) < popcount3(c ^ bg)));
+      const col = on ? F : B;
+      const x0 = cx * TELE_CW + (k & 1) * 3, y0 = cy * TELE_CH + (k >> 1) * 3;
+      for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
+        const o = ((y0 + y) * g.W + x0 + x) * 4;
+        buf[o] = col[0]; buf[o+1] = col[1]; buf[o+2] = col[2];
+      }
+    }
+    for (let k = 0; k < 6; k++) cnt[q[k]] = 0;
+  }
+  vctx.putImageData(new ImageData(buf, g.W, g.H), 0, 0);
+  setResText(cols + ' cols');
+}
+function popcount3(v) { return (v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1); }
+
+// PETSCII: 8x8 characters of blocks, shades, lines and shapes, in the 16 C64 colours. Each character is a mask of lit pixels.
+// The masks are built from simple shapes, and each shape also comes inverted
+const PET_BASE = [
+  () => 0,
+  (x, y) => x < 4, (x, y) => y < 4, (x, y) => x < 2, (x, y) => y < 2, (x, y) => x < 6, (x, y) => y < 6,
+  (x, y) => x < 4 && y < 4, (x, y) => x >= 4 && y < 4, (x, y) => x < 4 && y >= 4, (x, y) => x >= 4 && y >= 4,
+  (x, y) => (x < 4) === (y < 4),
+  (x, y) => x % 2 === 0 && y % 2 === 0, (x, y) => (x + y) % 2 === 0,
+  (x, y) => y % 2 === 0, (x, y) => x % 2 === 0,
+  (x, y) => x === 3 || x === 4, (x, y) => y === 3 || y === 4, (x, y) => x === 3 || x === 4 || y === 3 || y === 4,
+  (x, y) => Math.abs(x - y) <= 1, (x, y) => Math.abs(x + y - 7) <= 1,
+  (x, y) => (x - 3.5) ** 2 + (y - 3.5) ** 2 <= 12, (x, y) => (x - 3.5) ** 2 + (y - 3.5) ** 2 <= 4,
+  (x, y) => x + y < 7, (x, y) => x > y
+];
+const PET_MASKS = [], PET_COV = [];
+(() => {
+  const seen = new Set();
+  const add = m => { const k = m.join(''); if (!seen.has(k)) { seen.add(k); PET_MASKS.push(m); } };
+  for (const f of PET_BASE) {
+    const m = new Uint8Array(64);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) m[y * 8 + x] = f(x, y) ? 1 : 0;
+    add(m);
+    add(m.map(v => 1 - v));
+  }
+  // How much of each of the 4x4 samples a mask covers (each sample is a 2x2 block of mask pixels)
+  for (const m of PET_MASKS) {
+    const c = new Float32Array(16);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) c[(y >> 1) * 4 + (x >> 1)] += m[y * 8 + x] / 4;
+    PET_COV.push(c);
+  }
+})();
+// Squared error between the 16 samples and a character drawn in colours F and B (each sample shows its covered share of F)
+function petError(cov, F, B, sr, sg, sb) {
+  let e = 0;
+  for (let k = 0; k < 16; k++) {
+    const c = cov[k], u = 1 - c;
+    e += (sr[k] - (c * F[0] + u * B[0])) ** 2 + (sg[k] - (c * F[1] + u * B[1])) ** 2 + (sb[k] - (c * F[2] + u * B[2])) ** 2;
+  }
+  return e;
+}
+// The pair of C64 colours whose half-and-half mix is nearest a colour, with a small preference for pairs that are close together.
+// Worked out once for each 4-bit colour bin
+const PET_CHECK = PET_MASKS.findIndex(m => m.every((v, i) => v === ((i % 8 + (i >> 3)) % 2 === 0 ? 1 : 0)));
+const PET_MIX = new Array(4096);
+function petMixPair(r, g, b) {
+  const key = ((Math.min(255, r) >> 4) << 8) | ((Math.min(255, g) >> 4) << 4) | (Math.min(255, b) >> 4);
+  let pair = PET_MIX[key];
+  if (!pair) {
+    const P = PALETTES.c64.rgb, tr = (key >> 8) * 16 + 8, tg = ((key >> 4) & 15) * 16 + 8, tb = (key & 15) * 16 + 8;
+    let bd = Infinity;
+    pair = [0, 0];
+    for (let a = 0; a < P.length; a++) for (let c = a; c < P.length; c++) {
+      const dr = tr - (P[a][0] + P[c][0]) / 2, dg = tg - (P[a][1] + P[c][1]) / 2, db = tb - (P[a][2] + P[c][2]) / 2;
+      const gap = (P[a][0] - P[c][0]) ** 2 + (P[a][1] - P[c][1]) ** 2 + (P[a][2] - P[c][2]) ** 2;
+      const e = dr * dr + dg * dg + db * db + 0.12 * gap;
+      if (e < bd) { bd = e; pair = [a, c]; }
+    }
+    PET_MIX[key] = pair;
+  }
+  return pair;
+}
+// strict: one background colour for the whole picture and a foreground colour per character, as in real C64 text mode
+function petFrame(src, sw, sh, strict) {
+  const cols = Math.min(+res.value, 80);
+  const g = sampleCells(src, sw, sh, cols, 4, 4, 8, 8);
+  const buf = textBuffer(g.W, g.H), d = g.data, P = PALETTES.c64.rgb;
+  let gbg = 0;
+  if (strict) {
+    // The shared background is the commonest C64 colour in the picture
+    const hist = new Uint32Array(P.length);
+    for (let i = 0; i < d.length; i += 4) hist[nearestCached('c64', P, d[i], d[i+1], d[i+2])]++;
+    for (let k = 1; k < P.length; k++) if (hist[k] > hist[gbg]) gbg = k;
+  }
+  const sr = new Float32Array(16), sg = new Float32Array(16), sb = new Float32Array(16), sq = new Float32Array(16), sd = new Float32Array(16);
+  const GB = P[gbg];
+  for (let cy = 0; cy < g.rows; cy++) for (let cx = 0; cx < cols; cx++) {
+    let tr = 0, tg = 0, tb = 0, tq = 0, td = 0;
+    for (let k = 0; k < 16; k++) {
+      const i = ((cy * 4 + (k >> 2)) * g.gc + cx * 4 + (k & 3)) * 4;
+      const r = d[i], gg = d[i+1], b = d[i+2];
+      sr[k] = r; sg[k] = gg; sb[k] = b;
+      sq[k] = r * r + gg * gg + b * b;
+      tr += r; tg += gg; tb += b; tq += sq[k];
+      if (strict) { sd[k] = (r - GB[0]) ** 2 + (gg - GB[1]) ** 2 + (b - GB[2]) ** 2; td += sd[k]; }
+    }
+    // The best character is the one that leaves the least squared error between the samples and their two colours.
+    // For a mask covering a share of each sample, that is the same as making |sum of covered|^2 / covered weight big
+    let best = 0, bestScore = -Infinity;
+    for (let m = 0; m < PET_COV.length; m++) {
+      const cov = PET_COV[m];
+      let wf = 0, fr = 0, fg = 0, fb = 0, fq = 0, fd = 0;
+      for (let k = 0; k < 16; k++) { const c = cov[k]; wf += c; fr += c * sr[k]; fg += c * sg[k]; fb += c * sb[k]; fq += c * sq[k]; if (strict) fd += c * sd[k]; }
+      let score;
+      if (strict) {
+        // Error = background error on the uncovered part + foreground variance on the covered part (smaller is better)
+        const fgErr = wf > 1e-6 ? fq - (fr * fr + fg * fg + fb * fb) / wf : 0;
+        score = -((td - fd) + fgErr);
+      } else {
+        const wb = 16 - wf, br = tr - fr, bgn = tg - fg, bb = tb - fb;
+        score = (wf > 1e-6 ? (fr * fr + fg * fg + fb * fb) / wf : 0) + (wb > 1e-6 ? (br * br + bgn * bgn + bb * bb) / wb : 0);
+      }
+      if (score > bestScore) { bestScore = score; best = m; }
+    }
+    // Snap the covered and uncovered averages to C64 colours
+    const cov = PET_COV[best];
+    let wf = 0, fr = 0, fg = 0, fb = 0;
+    for (let k = 0; k < 16; k++) { const c = cov[k]; wf += c; fr += c * sr[k]; fg += c * sg[k]; fb += c * sb[k]; }
+    const wb = 16 - wf;
+    const fgIdx = wf > 1e-6 ? nearestCached('c64', P, fr / wf, fg / wf, fb / wf) : (strict ? gbg : nearestCached('c64', P, tr / 16, tg / 16, tb / 16));
+    const bgIdx = strict ? gbg : (wb > 1e-6 ? nearestCached('c64', P, (tr - fr) / wb, (tg - fg) / wb, (tb - fb) / wb) : fgIdx);
+    let F = P[fgIdx], B = P[bgIdx], mask = PET_MASKS[best];
+    if (!strict) {
+      // A checkerboard of two colours reads as a third colour, as the shade characters did on a real C64. Use it when the
+      // mix of the best pair is closer to the cell than the plain character with its snapped colours
+      const mix = petMixPair(tr / 16, tg / 16, tb / 16), mc = PET_COV[PET_CHECK];
+      if (petError(PET_COV[best], F, B, sr, sg, sb) > petError(mc, P[mix[0]], P[mix[1]], sr, sg, sb)) { mask = PET_MASKS[PET_CHECK]; F = P[mix[0]]; B = P[mix[1]]; }
+    }
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+      const o = ((cy * 8 + y) * g.W + cx * 8 + x) * 4, c = mask[y * 8 + x] ? F : B;
+      buf[o] = c[0]; buf[o+1] = c[1]; buf[o+2] = c[2];
+    }
+  }
+  vctx.putImageData(new ImageData(buf, g.W, g.H), 0, 0);
   setResText(cols + ' cols');
 }
 
@@ -1184,10 +1462,10 @@ const procCv = document.createElement('canvas');
 function buildWorkerSource() {
   const palettes = {};
   for (const k in PALETTES) if (PALETTES[k] && PALETTES[k].rgb) palettes[k] = { mode: PALETTES[k].mode, rgb: PALETTES[k].rgb };
-  const fns = [quantise, nearest, nearestCached, diffuse, lumaBuf, mono1, atkinson, channelQuant, vhsRand, vhs, atariST, atariLynx, megaDrive, cpcMode1, c64Multi, appleHires, blueNoise, applyFilter];
+  const fns = [quantise, nearest, nearestCached, diffuse, lumaBuf, mono1, atkinson, channelQuant, vhsRand, vhs, atariST, atariLynx, amigaHam, megaDrive, cpcMode1, c64Multi, appleHires, blueNoise, applyFilter];
   return `
 let dither = true, pal = 'gameboy', LUTS = {}, bufCache = null, vhsCopy = null;
-let stPal = null, stTick = 0, mdPal = null, mdTick = 0, cpcPal = null, cpcTick = 0, lynxPal = null, lynxTick = 0;
+let stPal = null, stTick = 0, mdPal = null, mdTick = 0, cpcPal = null, cpcTick = 0, lynxPal = null, lynxTick = 0, hamPal = null, hamTick = 0;
 const LYNX_LEVEL = k => Math.round(k * 255 / 15);
 const q4 = v => Math.min(15, Math.round(v * 15 / 255));
 const BAYER = ${JSON.stringify(BAYER)}, B8 = ${JSON.stringify(B8)}, BLUE = ${JSON.stringify(Array.from(BLUE))};
@@ -1211,12 +1489,14 @@ self.onmessage = (e) => {
   else if (pal === 'vhs') vhs(d, w, h, m.at);
   else if (pal === 'st') atariST(d, w, h);
   else if (pal === 'lynx') atariLynx(d, w, h);
+  else if (pal === 'ham') amigaHam(d, w, h);
+  else if (pal === 'web') channelQuant(d, w, h, 6);
   else if (pal === 'apple') appleHires(d, w, h);
   else if (pal === 'bluen') blueNoise(d, w, h);
   else if (pal === 'c64mc') c64Multi(d, w, h);
   else if (pal === 'cpc') cpcMode1(d, w, h);
   else if (pal !== 'original') quantise(d, w, h);
-  if (m.lut) applyFilter(d, m.lut);
+  if (m.lut) applyFilter(d, m.lut, m.lutRgb);
   self.postMessage({ buf: d.buffer, w, h, pal }, [d.buffer]);
 };`;
 }
@@ -1230,6 +1510,7 @@ function startWorker() {
       // Drop a result that no longer matches the screen, and redraw in its place
       if (m.w !== view.width || m.h !== view.height || m.pal !== pal || procFrozen !== frozen) { dirty = true; return; }
       vctx.putImageData(new ImageData(new Uint8ClampedArray(m.buf), m.w, m.h), 0, 0);
+      fxStale = true;
     };
     procWorker.onerror = () => { // fall back to processing on the main thread
       if (procWorker) procWorker.terminate();
@@ -1240,7 +1521,7 @@ function startWorker() {
 startWorker();
 
 // Draws one processed frame of the live camera, the frozen photo or the review clip into the view
-const PX_CAP = {atari: 160, lynx: 160, apple: 280, md: 280, c64mc: 280}; // widest picture for the styles of fixed hardware
+const PX_CAP = {atari: 160, lynx: 160, apple: 280, md: 280, c64mc: 280, tandy: 160, bbc: 160, msx: 256, ham: 320}; // widest picture for the styles of fixed hardware
 function drawFrame() {
   const live = cam.readyState >= 2 && cam.videoWidth;
   const src = reviewVid ? (reviewVid.readyState >= 2 ? reviewVid : null) : (frozen ? frozenFrame : live ? cam : null);
@@ -1251,6 +1532,7 @@ function drawFrame() {
   const sh = src.videoHeight || src.height;
   if (!reviewVid && CELL_MODES[pal]) { dirty = false; cellFrame(src, sw, sh); view.style.display = 'block'; msg.style.display = 'none'; return; }
   if (!reviewVid && isZzt(pal)) { dirty = false; zztFrame(src, sw, sh, pal === 'zztw' || pal === 'zztwr' ? ZZT_WIDE : ZZT_EGA, pal === 'zzr' || pal === 'zztwr'); view.style.display = 'block'; msg.style.display = 'none'; return; }
+  if (!reviewVid && (pal === 'tele' || pal === 'pet' || pal === 'pets')) { dirty = false; if (pal === 'tele') teleFrame(src, sw, sh); else petFrame(src, sw, sh, pal === 'pets'); view.style.display = 'block'; msg.style.display = 'none'; return; }
   const onGpu = !reviewVid && gpuReady();
   // Styles that run on the CPU go to the worker, unless the worker is unavailable (zx styles stay on the main thread)
   const viaWorker = !reviewVid && !onGpu && !!procWorker && pal !== 'zx' && pal !== 'zxr';
@@ -1277,7 +1559,7 @@ function drawFrame() {
     const img = pctx.getImageData(0, 0, w, h);
     adjust(img.data);
     procBusy = true; procFrozen = frozen;
-    procWorker.postMessage({ buf: img.data.buffer, w, h, pal, dither, lut: filterLut || null,
+    procWorker.postMessage({ buf: img.data.buffer, w, h, pal, dither, lut: filterLut || null, lutRgb: filterRgb,
       at: frozen ? frozenNow : undefined }, [img.data.buffer]);
     view.style.display = 'block'; msg.style.display = 'none';
     setResText(w + ' px wide');
@@ -1305,12 +1587,14 @@ function drawFrame() {
     else if (pal === 'vhs') vhs(img.data, w, h, frozen ? frozenNow : undefined);
     else if (pal === 'st') atariST(img.data, w, h);
     else if (pal === 'lynx') atariLynx(img.data, w, h);
+    else if (pal === 'ham') amigaHam(img.data, w, h);
+    else if (pal === 'web') channelQuant(img.data, w, h, 6);
     else if (pal === 'apple') appleHires(img.data, w, h);
     else if (pal === 'bluen') blueNoise(img.data, w, h);
     else if (pal === 'c64mc') c64Multi(img.data, w, h);
     else if (pal === 'cpc') cpcMode1(img.data, w, h);
     else if (pal !== 'original') quantise(img.data, w, h);
-    if (filterLut) applyFilter(img.data, filterLut);
+    if (filterLut) applyFilter(img.data, filterLut, filterRgb);
     vctx.putImageData(img, 0, 0);
   }
   view.style.display = 'block';
@@ -1339,6 +1623,7 @@ uniform int u_bsize;       // dither matrix size, 4 or 8
 uniform float u_mat[64];   // centred dither offsets, row-major
 uniform int u_dither;
 uniform int u_hasLut;
+uniform int u_lutRgb;      // 1: the filter has one curve per channel, not a gradient over brightness
 void main() {
   vec3 lum3 = vec3(0.299, 0.587, 0.114);
   float x = floor(gl_FragCoord.x);
@@ -1376,8 +1661,15 @@ void main() {
     col = pick / 255.0;
   }
   if (u_hasLut == 1) {
-    float Lo = floor(dot(col * 255.0, lum3));
-    col = texture2D(u_lut, vec2((Lo + 0.5) / 256.0, 0.5)).rgb;
+    if (u_lutRgb == 1) {
+      vec3 q = floor(col * 255.0 + 0.5);
+      col = vec3(texture2D(u_lut, vec2((q.r + 0.5) / 256.0, 0.5)).r,
+                 texture2D(u_lut, vec2((q.g + 0.5) / 256.0, 0.5)).g,
+                 texture2D(u_lut, vec2((q.b + 0.5) / 256.0, 0.5)).b);
+    } else {
+      float Lo = floor(dot(col * 255.0, lum3));
+      col = texture2D(u_lut, vec2((Lo + 0.5) / 256.0, 0.5)).rgb;
+    }
   }
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -1418,7 +1710,7 @@ function initGL() {
   const a = gl.getAttribLocation(glProg, 'a');
   gl.enableVertexAttribArray(a);
   gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['u_img', 'u_lut', 'u_size', 'u_con', 'u_bri', 'u_sat', 'u_gam', 'u_mode', 'u_n', 'u_pal', 'u_bsize', 'u_mat', 'u_dither', 'u_hasLut']) {
+  for (const n of ['u_img', 'u_lut', 'u_size', 'u_con', 'u_bri', 'u_sat', 'u_gam', 'u_mode', 'u_n', 'u_pal', 'u_bsize', 'u_mat', 'u_dither', 'u_hasLut', 'u_lutRgb']) {
     glLoc[n] = gl.getUniformLocation(glProg, n);
   }
   gl.uniform1i(glLoc.u_img, 0);
@@ -1463,6 +1755,7 @@ function gpuFrame(w, h) {
   gl.uniform1i(glLoc.u_mode, mode);
   gl.uniform1i(glLoc.u_dither, dither ? 1 : 0);
   gl.uniform1i(glLoc.u_hasLut, filterLut ? 1 : 0);
+  gl.uniform1i(glLoc.u_lutRgb, filterRgb ? 1 : 0);
   if (mode !== 0) {
     const list = PALETTES[pal].rgb;
     if (glPalName !== pal) {
@@ -1488,7 +1781,7 @@ function gpuFrame(w, h) {
 
 // The loop always schedules the next frame, so one failed frame can't stop the picture for good
 function frame() {
-  try { drawFrame(); }
+  try { if (dirty) fxStale = true; drawFrame(); fxPresent(); }
   catch (e) { showNote('Display error: ' + e.message); }
   requestAnimationFrame(frame);
 }
@@ -1668,8 +1961,35 @@ document.querySelectorAll('#sizes button').forEach(b => b.addEventListener('clic
   res.dispatchEvent(new Event('input'));
 }));
 
+// The Screen tab: a strength slider for each effect, and a reset button
+const fxEls = [];
+(() => {
+  const box = document.getElementById('adjScreen');
+  for (const [k, label] of FX_DEFS) {
+    const head = document.createElement('div');
+    head.className = 'row spread';
+    head.innerHTML = '<span class="dim"></span><span class="dim"></span>';
+    head.firstChild.textContent = label;
+    const out = head.lastChild;
+    const inp = document.createElement('input');
+    inp.id = 'fx_' + k; inp.type = 'range'; inp.min = '0'; inp.max = '1'; inp.step = '0.05'; inp.setAttribute('value', '0');
+    inp.value = String(fxParams[k]);
+    out.textContent = Math.round(fxParams[k] * 100) + '%';
+    inp.addEventListener('input', () => { fxParams[k] = +inp.value; out.textContent = Math.round(fxParams[k] * 100) + '%'; fxStale = true; persist(); });
+    box.append(head, inp);
+    fxEls.push(inp);
+  }
+  const row = document.createElement('div');
+  row.className = 'row';
+  const b = document.createElement('button');
+  b.textContent = 'Reset screen';
+  b.addEventListener('click', () => fxEls.forEach(el => { el.value = '0'; el.dispatchEvent(new Event('input')); }));
+  row.appendChild(b);
+  box.appendChild(row);
+})();
+
 // Double-tap a slider to put it back to its default. Dragging does not count as a tap.
-[res, conEl, briEl, satEl, gamEl].forEach(el => {
+[res, conEl, briEl, satEl, gamEl, ...fxEls].forEach(el => {
   let startX = 0, startY = 0, lastTap = 0;
   el.addEventListener('pointerdown', e => { startX = e.clientX; startY = e.clientY; });
   el.addEventListener('pointerup', e => {
@@ -1697,6 +2017,7 @@ document.querySelectorAll('#filters button').forEach(b => {
     filterName = b.dataset.filter;
     if (filterName === 'random') FILTERS.random = randomGradientLut(); // a new gradient each time it is tapped
     filterLut = FILTERS[filterName];
+    filterRgb = FILTER_RGB.has(filterName);
     dirty = true;
     document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     updateFilterBtn();
@@ -1749,13 +2070,13 @@ adjBtn.addEventListener('click', () => {
   adjBtn.textContent = open ? 'Adjust ▴' : 'Adjust ▾';
 });
 
-// Tabs inside Adjust: Pixels (size and crop), Tone (the sliders), Text (character sets, ASCII styles only)
+// Tabs inside Adjust: Pixels (size and crop), Tone (the sliders), Screen (display effects), Text (character sets, ASCII styles only)
 function showAdjTab(tab) {
   const textOk = !document.getElementById('adjTextTab').hidden;
   if (tab === 'text' && !textOk) tab = 'pixels';
   adjTab = tab;
   document.querySelectorAll('#adjTabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.adj === tab)));
-  ['pixels', 'tone', 'text'].forEach(t => { document.getElementById('adj' + t[0].toUpperCase() + t.slice(1)).hidden = t !== tab; });
+  ['pixels', 'tone', 'screen', 'text'].forEach(t => { document.getElementById('adj' + t[0].toUpperCase() + t.slice(1)).hidden = t !== tab; });
 }
 document.querySelectorAll('#adjTabs button').forEach(b => b.addEventListener('click', () => showAdjTab(b.dataset.adj)));
 // Puts contrast, brightness, gamma and saturation back to their defaults
@@ -1769,7 +2090,7 @@ let swipe = null; // where a one-finger drag began, for swiping between styles
 const pointers = new Map();
 function applyZoom() {
   if (zoom === 1) { panX = 0; panY = 0; }
-  view.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  frameEl.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
 }
 function startPinch() {
   const [a, b] = [...pointers.values()];
@@ -1816,6 +2137,143 @@ stage.addEventListener('pointercancel', endPointer);
 
 window.addEventListener('resize', fit);
 
+// ---- Screen effects: drawn by a small WebGL shader at screen size, over the low-res picture ----
+// The picture is sampled in whole pixels, so it stays crisp. Effects: scanlines, CRT curve, vignette, glow, RGB split, pixel grid
+const FX_VS = 'attribute vec2 a; varying vec2 v; void main() { v = vec2(a.x * 0.5 + 0.5, 0.5 - a.y * 0.5); gl_Position = vec4(a, 0.0, 1.0); }';
+const FX_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec2 v;
+uniform sampler2D u_img;
+uniform vec2 u_src;   // picture size in pixels
+uniform vec2 u_out;   // output size in pixels
+uniform float u_scan, u_curve, u_vig, u_bloom, u_split, u_grid;
+vec3 pix(vec2 uv) { return texture2D(u_img, (floor(uv * u_src) + 0.5) / u_src).rgb; }
+void main() {
+  vec2 uv = v;
+  vec2 p0 = uv * 2.0 - 1.0;
+  float mask = 1.0;
+  if (u_curve > 0.0) {
+    // Barrel distortion: the edges bow outwards, and what falls outside the picture is black
+    float k = u_curve * 0.2;
+    vec2 p = p0 * vec2(1.0 + k * p0.y * p0.y, 1.0 + k * p0.x * p0.x);
+    uv = p * 0.5 + 0.5;
+    vec2 e = min(uv, 1.0 - uv);
+    mask = smoothstep(-0.002, 0.004, min(e.x, e.y));
+  }
+  uv = clamp(uv, 0.0, 1.0);
+  float off = u_split * 0.012;
+  vec3 c = vec3(pix(uv - vec2(off, 0.0)).r, pix(uv).g, pix(uv + vec2(off, 0.0)).b);
+  if (u_scan > 0.0) {
+    // The lower part of each picture row is dark, like the gap between scanlines
+    float ph = fract(uv.y * u_src.y);
+    c *= 1.0 - u_scan * 0.6 * smoothstep(0.4, 1.0, ph);
+  }
+  if (u_bloom > 0.0) {
+    // Bright parts bleed light into their surroundings: a ring of soft samples, bright areas only
+    vec3 acc = vec3(0.0);
+    for (int i = 0; i < 8; i++) {
+      float a = float(i) * 0.7853982;
+      vec2 d = vec2(cos(a), sin(a)) / u_src;
+      acc += max(texture2D(u_img, uv + d * 3.0).rgb - 0.4, 0.0);
+      acc += max(texture2D(u_img, uv + d * 7.0).rgb - 0.4, 0.0);
+    }
+    c += acc / 16.0 * u_bloom * 2.4;
+  }
+  if (u_grid > 0.0) {
+    // Thin dark lines between the picture's pixels, fading out when the pixels are too small to show them
+    float sc = u_out.x / u_src.x;
+    vec2 f = fract(uv * u_src);
+    vec2 dd = min(f, 1.0 - f);
+    float lw = 0.55 / sc;
+    float line = 1.0 - smoothstep(lw * 0.6, lw * 1.4 + 0.001, min(dd.x, dd.y));
+    c *= 1.0 - u_grid * clamp((sc - 2.5) / 3.0, 0.0, 1.0) * line * 0.8;
+  }
+  c *= 1.0 - u_vig * 0.85 * smoothstep(0.35, 1.5, length(p0));
+  gl_FragColor = vec4(c * mask, 1.0);
+}`;
+// A renderer on the given canvas: render(picture, width, height, strengths) draws the picture with the effects at that size
+function makeFx(canvas) {
+  let g;
+  try { g = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true }); } catch (e) { return null; }
+  if (!g) return null;
+  const sh = (type, src) => { const o = g.createShader(type); g.shaderSource(o, src); g.compileShader(o); if (!g.getShaderParameter(o, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(o)); return o; };
+  let prog;
+  try {
+    prog = g.createProgram();
+    g.attachShader(prog, sh(g.VERTEX_SHADER, FX_VS));
+    g.attachShader(prog, sh(g.FRAGMENT_SHADER, FX_FS));
+    g.linkProgram(prog);
+    if (!g.getProgramParameter(prog, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(prog));
+  } catch (e) { showNote('Screen effects off: ' + e.message); return null; }
+  g.useProgram(prog);
+  g.bindBuffer(g.ARRAY_BUFFER, g.createBuffer());
+  g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
+  const a = g.getAttribLocation(prog, 'a');
+  g.enableVertexAttribArray(a);
+  g.vertexAttribPointer(a, 2, g.FLOAT, false, 0, 0);
+  const loc = {};
+  for (const n of ['u_img', 'u_src', 'u_out', 'u_scan', 'u_curve', 'u_vig', 'u_bloom', 'u_split', 'u_grid']) loc[n] = g.getUniformLocation(prog, n);
+  const tex = g.createTexture();
+  g.bindTexture(g.TEXTURE_2D, tex);
+  for (const [k, v] of [[g.TEXTURE_MIN_FILTER, g.LINEAR], [g.TEXTURE_MAG_FILTER, g.LINEAR], [g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE], [g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE]]) g.texParameteri(g.TEXTURE_2D, k, v);
+  g.uniform1i(loc.u_img, 0);
+  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); fxBroken = true; });
+  return {
+    canvas,
+    render(pic, W, H, P) {
+      if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+      g.viewport(0, 0, W, H);
+      g.bindTexture(g.TEXTURE_2D, tex);
+      g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, g.RGBA, g.UNSIGNED_BYTE, pic);
+      g.uniform2f(loc.u_src, pic.width, pic.height);
+      g.uniform2f(loc.u_out, W, H);
+      g.uniform1f(loc.u_scan, P.scan); g.uniform1f(loc.u_curve, P.curve); g.uniform1f(loc.u_vig, P.vig);
+      g.uniform1f(loc.u_bloom, P.bloom); g.uniform1f(loc.u_split, P.split); g.uniform1f(loc.u_grid, P.grid);
+      g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
+    }
+  };
+}
+// Effects are off while a recorded clip is playing back, because the clip already has them
+function fxActive() { return !fxBroken && !reviewVid && FX_DEFS.some(([k]) => fxParams[k] > 0); }
+const fxCv = document.getElementById('fx');
+let fxMain = null, fxExport = null;
+const fxOutCv = document.createElement('canvas');
+// Called after every frame: shows the effects overlay in place of the plain picture, or hides it when no effect is on
+function fxPresent() {
+  const on = fxActive() && view.style.display !== 'none' && view.width > 0;
+  if (!on) {
+    if (fxCv.style.display !== 'none') { fxCv.style.display = 'none'; view.style.visibility = ''; }
+    return;
+  }
+  if (!fxMain) {
+    fxMain = makeFx(fxCv);
+    if (!fxMain) { fxBroken = true; document.getElementById('adjScreenTab').hidden = true; showAdjTab(adjTab); toast('Screen effects need WebGL'); return; }
+  }
+  // A live picture changes every frame; a frozen one only when something marks the overlay stale
+  if (frozen && !fxStale) return;
+  const cssW = parseFloat(view.style.width) || view.width, cssH = parseFloat(view.style.height) || view.height;
+  const k = Math.min(window.devicePixelRatio || 1, 2);
+  let W = Math.round(cssW * k), H = Math.round(cssH * k);
+  const big = Math.max(W, H);
+  if (big > 1600) { W = Math.round(W * 1600 / big); H = Math.round(H * 1600 / big); }
+  fxMain.render(view, Math.max(1, W), Math.max(1, H), fxParams);
+  fxCv.style.display = 'block';
+  view.style.visibility = 'hidden';
+  fxStale = false;
+}
+// The picture with the effects drawn at the given size (a canvas that stays valid until the next call), or null when none are on
+function fxRenderTo(W, H) {
+  if (!fxActive()) return null;
+  if (!fxExport) fxExport = makeFx(document.createElement('canvas'));
+  if (!fxExport) return null;
+  fxExport.render(view, W, H, fxParams);
+  return fxExport.canvas;
+}
+
 function exportBlob() {
   // Pixel-perfect: the largest whole-number scale that fits 2160 px on the longest side, smoothing off,
   // so every picture pixel is an exact square block of the same size
@@ -1824,7 +2282,7 @@ function exportBlob() {
   out.width = view.width * s; out.height = view.height * s;
   const o = out.getContext('2d');
   o.imageSmoothingEnabled = false;
-  o.drawImage(view, 0, 0, out.width, out.height);
+  o.drawImage(fxRenderTo(out.width, out.height) || view, 0, 0, out.width, out.height);
   return new Promise(r => out.toBlob(r, 'image/png'));
 }
 
@@ -1896,14 +2354,16 @@ let recCv = null, recCtx = null, recRaf = 0;
 // Copies the on-screen picture into the larger recording canvas once per display frame
 function copyFrames() {
   const W = recCv.width, H = recCv.height;
-  if (view.width * H === view.height * W) recCtx.drawImage(view, 0, 0, W, H);
-  else {
+  const same = view.width * H === view.height * W;
+  let w = W, h = H;
+  if (!same) {
     // The picture changed shape while recording (a new ratio or style): keep its proportions, centred on black
-    const k = Math.min(W / view.width, H / view.height), w = view.width * k, h = view.height * k;
+    const k = Math.min(W / view.width, H / view.height);
+    w = view.width * k; h = view.height * k;
     recCtx.fillStyle = '#000';
     recCtx.fillRect(0, 0, W, H);
-    recCtx.drawImage(view, (W - w) / 2, (H - h) / 2, w, h);
   }
+  recCtx.drawImage(fxRenderTo(Math.max(1, Math.round(w)), Math.max(1, Math.round(h))) || view, (W - w) / 2, (H - h) / 2, w, h);
   recRaf = requestAnimationFrame(copyFrames);
 }
 function stopCopy() { cancelAnimationFrame(recRaf); recCv = null; recCtx = null; }
