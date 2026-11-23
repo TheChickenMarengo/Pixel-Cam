@@ -101,7 +101,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
   <div class="row" id="aspect"><button data-aspect="original" aria-pressed="false">Original</button><button data-aspect="4x3" aria-pressed="false">4:3</button><button data-aspect="3x2" aria-pressed="false">3:2</button><button data-aspect="16x9" aria-pressed="false">16:9</button><button data-aspect="3x4" aria-pressed="false">3:4</button><button data-aspect="2x3" aria-pressed="false">2:3</button><button data-aspect="9x16" aria-pressed="false">9:16</button></div>
-  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button><button data-set="hiragana" aria-pressed="false">Hiragana</button><button data-set="arabic" aria-pressed="false">Arabic</button><button data-set="hindi" aria-pressed="false">Hindi</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
+  <div class="row" id="charsets"><button data-set="all" aria-pressed="false">All</button><button data-set="simple" aria-pressed="false">Simple</button><button data-set="letters" aria-pressed="false">Letters</button><button data-set="symbols" aria-pressed="false">Symbols</button><button data-set="hiragana" aria-pressed="false">Hiragana</button><button data-set="greek" aria-pressed="false">Greek</button><button data-set="arabic" aria-pressed="false">Arabic</button><button data-set="hindi" aria-pressed="false">Hindi</button><button data-set="sanskrit" aria-pressed="false">Sanskrit</button></div>  <div class="row spread"><span class="dim">Contrast</span><span class="dim" id="conLabel">1.00</span></div>
   <input type="range" id="con" min="0.5" max="2" step="0.05" value="1">
   <div class="row spread"><span class="dim">Brightness</span><span class="dim" id="briLabel">0</span></div>
   <input type="range" id="bri" min="-100" max="100" step="5" value="0">
@@ -636,15 +636,28 @@ const ASCII_SETS = {
   letters: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
   symbols: ' .,:;\'"`-_~+=*^!?|/\\<>()[]{}#%&$@',
   hiragana: ' あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん',
-  arabic: ' ابتثجحخدذرزسشصضطظعغفقكلمنهوي',
-  hindi: ' अआइईउऊएऐओऔकखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसह',
+  greek: ' αβγδεζηθικλμνξοπρσςτυφχψωΓΔΘΛΞΠΣΦΨΩ',
+  arabic: ' ابتثجحخدذرزسشصضطظعغفقكلمنهويءأإآؤئةى٠١٢٣٤٥٦٧٨٩ﻻ',
+  // Hindi: whole letters, with nukta forms, common conjuncts, a few vowel signs and digits. Written as a list because a
+  // glyph such as का is two characters
+  hindi: ' अ आ इ ई उ ऊ ए ऐ ओ औ क ख ग घ ङ च छ ज झ ञ ट ठ ड ढ ण त थ द ध न प फ ब भ म य र ल व श ष स ह क़ ख़ ग़ ज़ ड़ ढ़ फ़ क्ष त्र ज्ञ श्र का कि की कु कू के को कं ० १ २ ३ ४ ५ ६ ७ ८ ९'.split(' ').map(x => x || ' '),
+  // Sanskrit is written in the same Devanagari script. This set adds the vocalic vowels, visarga, anusvara, the danda
+  // marks, Om and the many joined consonants that Sanskrit uses far more than Hindi does
+  sanskrit: ' अ आ इ ई उ ऊ ऋ ॠ ऌ ए ऐ ओ औ क ख ग घ ङ च छ ज झ ञ ट ठ ड ढ ण त थ द ध न प फ ब भ म य र ल व श ष स ह ळ अं अः कः कं क्ष ज्ञ त्र श्र क्त त्त त्य त्व त्म द्ध द्य द्व द्म ध्य न्त न्द न्न प्र ब्र म्य ष्ट ष्ण स्त स्य स्थ स्न ह्म ह्न का कि की कु कू कृ के कै को कौ । ॥ ॐ'.split(' ').map(x => x || ' '),
 };
-let ASCII_RAMP = ASCII_CANDIDATES;
+let ASCII_RAMP = [...ASCII_CANDIDATES]; // a list, because one glyph can be several characters (a letter plus its vowel mark)
 let asciiAtlas = null, asciiOut = null, asciiLut = null, asciiCands = null, asciiAlpha = null, asciiBuf = null;
+// Draws one glyph centred on (x, y). A glyph wider than its cell, such as a joined consonant, is squeezed to fit
+function drawGlyph(c, ch, x, y, cw) {
+  const w = c.measureText(ch).width;
+  if (w > cw) { c.save(); c.translate(x, y); c.scale(cw / w, 1); c.fillText(ch, 0, 0); c.restore(); }
+  else c.fillText(ch, x, y);
+}
 // Every glyph drawn once into one strip, so each cell is a fast image copy
 function getAtlas(m) {
   if (!asciiAtlas) {
-    const chars = [...(ASCII_SETS[asciiSet] || ASCII_CANDIDATES)];
+    const def = ASCII_SETS[asciiSet] || ASCII_CANDIDATES;
+    const chars = typeof def === 'string' ? [...def] : def;
     const ink = chars.map(ch => {
       const t = document.createElement('canvas');
       t.width = m.cw; t.height = m.ch;
@@ -653,14 +666,14 @@ function getAtlas(m) {
       tc.textAlign = 'center';
       tc.textBaseline = 'middle';
       tc.fillStyle = '#fff';
-      tc.fillText(ch, m.cw / 2, m.ch / 2);
+      drawGlyph(tc, ch, m.cw / 2, m.ch / 2, m.cw);
       const px = tc.getImageData(0, 0, m.cw, m.ch).data;
       let s = 0;
       for (let i = 3; i < px.length; i += 4) s += px[i];
       return s;
     });
     const order = chars.map((_, i) => i).sort((a, b) => ink[a] - ink[b]);
-    ASCII_RAMP = order.map(i => chars[i]).join('');
+    ASCII_RAMP = order.map(i => chars[i]);
     // Brightness each glyph actually gives on screen: its lit share of the cell times the glyph colour's luminance (about 235)
     const cellPx = m.cw * m.ch * 255;
     asciiOut = order.map(i => ink[i] / cellPx * 235);
@@ -683,7 +696,7 @@ function getAtlas(m) {
     a.textAlign = 'center';
     a.textBaseline = 'middle';
     a.fillStyle = '#d8ffd8';
-    for (let i = 0; i < ASCII_RAMP.length; i++) a.fillText(ASCII_RAMP[i], i * m.cw + m.cw / 2, m.ch / 2);
+    for (let i = 0; i < ASCII_RAMP.length; i++) drawGlyph(a, ASCII_RAMP[i], i * m.cw + m.cw / 2, m.ch / 2, m.cw);
     // Each glyph's coverage as its own small array, so cells can be written straight into pixels
     const ad = a.getImageData(0, 0, asciiAtlas.width, m.ch).data;
     asciiAlpha = [];
