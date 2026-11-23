@@ -228,12 +228,10 @@ const PALETTES = {
   pocket: {mode:'ramp', colours:['#000000','#555555','#aaaaaa','#ffffff']},
   cga: {mode:'nearest', colours:['#000000','#55ffff','#ff55ff','#ffffff']},
   pico8: {mode:'nearest', colours:['#000000','#1d2b53','#7e2553','#008751','#ab5236','#5f574f','#c2c3c7','#fff1e8','#ff004d','#ffa300','#ffec27','#00e436','#29adff','#83769c','#ff77a8','#ffccaa']},
-  // Amstrad CPC: its 27 hardware colours are every mix of 0, half and full on each channel
   // Amiga OCS: a 32-colour set in the spirit of Workbench and the classic games
   amiga: {mode:'nearest', colours:['#000000','#ffffff','#aaaaaa','#555555','#3b67a2','#7ea0d8','#0a2a5a','#ff8800','#ffaa44','#884400','#cc2200','#ff6666','#00aa44','#66dd88','#005522','#aadd22','#dddd00','#886600','#2288cc','#44ccff','#0055aa','#aa44cc','#dd88ff','#552277','#cc6688','#ffccaa','#664433','#eeddbb','#88cc88','#336666','#ff3399','#33ccaa']},
   // Atari 2600: a 128-colour TIA palette, and the picture is limited to 160 px wide in drawFrame
   atari: {mode:'nearest', colours:atariColours()},
-  // EGA: the 64-colour palette (2 bits per channel), unlike the 16-colour DOS set
   // Virtual Boy: four shades of red LED
   vb: {mode:'ramp', colours:['#000000','#4a0000','#a00000','#ff1a1a']},
   // Nokia 3310: four greys on the pale green LCD
@@ -294,6 +292,8 @@ const stage = document.getElementById('stage');
 const msg = document.getElementById('msg');
 const res = document.getElementById('res');
 const resLabel = document.getElementById('resLabel');
+// The label is only written when its text changes, not on every frame
+function setResText(t) { if (resLabel.textContent !== t) resLabel.textContent = t; }
 const ditherBtn = document.getElementById('dither');
 const flipBtn = document.getElementById('flip');
 const recBtn = document.getElementById('rec');
@@ -324,7 +324,8 @@ function cropFor(sw, sh) {
   if (!r) return {sx: 0, sy: 0, cw: sw, ch: sh, ratio: sw / sh};
   if (sw / sh > r) { const cw = sh * r; return {sx: (sw - cw) / 2, sy: 0, cw, ch: sh, ratio: r}; }
   const ch = sw / r; return {sx: 0, sy: (sh - ch) / 2, cw: sw, ch, ratio: r};
-}if (SAVED.con) document.getElementById('con').value = SAVED.con;
+}
+if (SAVED.con) document.getElementById('con').value = SAVED.con;
 if (SAVED.bri) document.getElementById('bri').value = SAVED.bri;
 if (SAVED.sat) document.getElementById('sat').value = SAVED.sat;
 if (SAVED.gam) document.getElementById('gam').value = SAVED.gam;
@@ -401,6 +402,8 @@ function nearestCached(name, list, r, g, b) {
 }
 
 // Gamma, contrast around mid-grey, brightness offset, then saturation
+const gmLut = new Uint8ClampedArray(256);
+let gmLutFor = NaN; // the gamma the table was built for
 function adjust(d) {
   const c = +conEl.value;
   const b = +briEl.value;
@@ -408,8 +411,10 @@ function adjust(d) {
   const gm = +gamEl.value;
   if (c === 1 && b === 0 && s === 1 && gm === 1) return;
   // Gamma first, through a lookup table: above 1 lifts the midtones, below 1 darkens them
-  const gmLut = new Uint8ClampedArray(256);
-  for (let v = 0; v < 256; v++) gmLut[v] = 255 * Math.pow(v / 255, 1 / gm) + 0.5;
+  if (gmLutFor !== gm) {
+    for (let v = 0; v < 256; v++) gmLut[v] = 255 * Math.pow(v / 255, 1 / gm) + 0.5;
+    gmLutFor = gm;
+  }
   for (let i = 0; i < d.length; i += 4) {
     const r = (gmLut[d[i]] - 128) * c + 128 + b;
     const g = (gmLut[d[i+1]] - 128) * c + 128 + b;
@@ -671,7 +676,6 @@ function toggleFreeze() {
   flashNow();
 }
 
-// Draws one processed frame of the live camera (or the frozen photo) into the view
 // Cell looks (ASCII, dot matrix): one sample per character or dot, drawn at a fixed cell size
 const CELL_MODES = {ascii: {cap: 120, cw: 6, ch: 8}, asciic: {cap: 120, cw: 6, ch: 8}, dot: {cap: 160, cw: 6, ch: 6}};
 // Candidate glyphs; they are sorted by how much ink each one draws, so brightness steps look even
@@ -777,9 +781,8 @@ function cellFrame(src, sw, sh) {
   const rows = Math.max(1, Math.round(cols / crop.ratio * m.cw / m.ch));
   // One sample per character or dot
   const isAscii = pal === 'ascii' || pal === 'asciic';
-  const S = 1;
-  const gc = cols * S, gr = rows * S;
-  cellSrc.width = gc; cellSrc.height = gr;
+  const gc = cols, gr = rows;
+  sized(cellSrc, gc, gr);
   const sctx = cellSrc.getContext('2d', {willReadFrequently: true});
   sctx.save();
   if (facing === 'user') { sctx.translate(gc, 0); sctx.scale(-1, 1); }
@@ -854,7 +857,7 @@ function cellFrame(src, sw, sh) {
     applyFilter(im.data, filterLut);
     vctx.putImageData(im, 0, 0);
   }
-  resLabel.textContent = cols + ' cols';
+  setResText(cols + ' cols');
 }
 
 // Atari ST: 512 colours (3 bits per channel), but only 16 on screen. The 16 are the most common colours in the picture,
@@ -994,16 +997,15 @@ function zztOn(k, x, y) {
 // Camera colours are much less saturated than the EGA palette, so most of them match a grey. Boosting the colour
 // before matching pulls each pixel toward the nearest saturated EGA colour
 const ZZT_SATURATION = 2.5;
-function zztBoost(r, g, b) {
-  const y = 0.299 * r + 0.587 * g + 0.114 * b;
-  const c = v => Math.max(0, Math.min(255, y + ZZT_SATURATION * (v - y)));
-  return [c(r), c(g), c(b)];
-}
 // The EGA greys (black, the two greys and white) are the usual fallback for muted pixels. For a sample with real colour,
 // they get a penalty so a coloured entry wins unless the sample is close to grey
 const ZZT_GREY_PENALTY = 6000, ZZT_CHROMA = 25;
 function zztNearest(r, g, b, P) {
-  const [R, G, B] = zztBoost(r, g, b);
+  // Boost the colour toward saturated, written out so no array is made for every sample
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const R = Math.max(0, Math.min(255, y + ZZT_SATURATION * (r - y)));
+  const G = Math.max(0, Math.min(255, y + ZZT_SATURATION * (g - y)));
+  const B = Math.max(0, Math.min(255, y + ZZT_SATURATION * (b - y)));
   const chroma = Math.max(r, g, b) - Math.min(r, g, b);
   let best = 0, bd = Infinity;
   for (let k = 0; k < P.length; k++) {
@@ -1016,6 +1018,7 @@ function zztNearest(r, g, b, P) {
   return best;
 }
 let zztBuf = null, zztSrc = null;
+const zq = new Uint8Array(4), zcount = new Uint8Array(64); // the four samples of a character, and how often each colour occurs
 // ZZT-R: characters are still matched to the true colours, but shown in a shuffled palette. Black stays black,
 // as in the ZX shuffle. The seed changes when the style is tapped again
 let zztRSeed = (Math.random() * 4294967296) >>> 0;
@@ -1050,24 +1053,22 @@ function zztFrame(src, sw, sh, P = ZZT_EGA, shuffle = false) {
   const buf = zztBuf;
   const show = shuffle ? zztShow(P) : P; // once per frame, not per character
   for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
-    // The four samples of this character, each snapped to the EGA palette
-    const q = [];
+    // The four samples of this character, each snapped to the palette
     for (let k = 0; k < 4; k++) {
       const i = ((cy * 2 + (k >> 1)) * gc + cx * 2 + (k & 1)) * 4;
-      q.push(zztNearest(px[i], px[i+1], px[i+2], P));
+      zq[k] = zztNearest(px[i], px[i+1], px[i+2], P);
+      zcount[zq[k]]++;
     }
-    // The most common colour is the background; the most common other colour is the foreground
-    const count = {};
-    for (const c of q) count[c] = (count[c] || 0) + 1;
-    const bg = +Object.keys(count).sort((a, b) => count[b] - count[a])[0];
-    const rest = q.filter(c => c !== bg);
+    // The most common colour is the background; the most common other colour is the foreground (ties go to the lower index)
+    let bg = zq[0];
+    for (let k = 1; k < 4; k++) { const c = zq[k]; if (zcount[c] > zcount[bg] || (zcount[c] === zcount[bg] && c < bg)) bg = c; }
     let fg = bg, k = 0;
-    if (rest.length) {
-      const rc = {};
-      for (const c of rest) rc[c] = (rc[c] || 0) + 1;
-      fg = +Object.keys(rc).sort((a, b) => rc[b] - rc[a])[0];
-      k = rest.filter(c => c === fg).length;
+    for (let j = 0; j < 4; j++) {
+      const c = zq[j];
+      if (c === bg) continue;
+      if (k === 0 || zcount[c] > zcount[fg] || (zcount[c] === zcount[fg] && c < fg)) { fg = c; k = zcount[c]; }
     }
+    for (let j = 0; j < 4; j++) zcount[zq[j]] = 0;
     const bgC = show[bg], fgC = show[fg];
     for (let y = 0; y < ZZT_CH; y++) for (let x = 0; x < ZZT_CW; x++) {
       const o = ((cy * ZZT_CH + y) * W + cx * ZZT_CW + x) * 4;
@@ -1076,7 +1077,7 @@ function zztFrame(src, sw, sh, P = ZZT_EGA, shuffle = false) {
     }
   }
   vctx.putImageData(new ImageData(buf, W, H), 0, 0);
-  resLabel.textContent = cols + ' cols';
+  setResText(cols + ' cols');
 }
 
 // Amstrad CPC: 27 colours (3 levels per channel), but Mode 1 shows only 4 at a time. The 4 most common colours in the
@@ -1238,6 +1239,8 @@ function startWorker() {
 }
 startWorker();
 
+// Draws one processed frame of the live camera, the frozen photo or the review clip into the view
+const PX_CAP = {atari: 160, lynx: 160, apple: 280, md: 280, c64mc: 280}; // widest picture for the styles of fixed hardware
 function drawFrame() {
   const live = cam.readyState >= 2 && cam.videoWidth;
   const src = reviewVid ? (reviewVid.readyState >= 2 ? reviewVid : null) : (frozen ? frozenFrame : live ? cam : null);
@@ -1254,7 +1257,7 @@ function drawFrame() {
   // Still busy with the last picture: keep showing it until the new one arrives
   if (viaWorker && procBusy) return;
   dirty = false;
-  const cap = {atari: 160, lynx: 160, apple: 280, md: 280, c64mc: 280}[pal];
+  const cap = PX_CAP[pal];
   // A review clip is drawn at the size it was recorded, so it is not rescaled
   // Review clips keep their recorded shape; live pictures and photos use the chosen ratio
   const crop = reviewVid ? {sx: 0, sy: 0, cw: sw, ch: sh, ratio: sw / sh} : cropFor(sw, sh);
@@ -1277,13 +1280,13 @@ function drawFrame() {
     procWorker.postMessage({ buf: img.data.buffer, w, h, pal, dither, lut: filterLut || null,
       at: frozen ? frozenNow : undefined }, [img.data.buffer]);
     view.style.display = 'block'; msg.style.display = 'none';
-    resLabel.textContent = w + ' px wide';
+    setResText(w + ' px wide');
     return;
   }
   vctx.imageSmoothingEnabled = true;
   vctx.imageSmoothingQuality = 'high';
   vctx.save();
-  if (facing === 'user') { vctx.translate(w, 0); vctx.scale(-1, 1); }
+  if (facing === 'user' && !reviewVid) { vctx.translate(w, 0); vctx.scale(-1, 1); } // a recorded clip is already mirrored
   vctx.drawImage(src, crop.sx, crop.sy, crop.cw, crop.ch, 0, 0, w, h);
   vctx.restore();
   // Review clips are already processed when recorded, so they play back as filmed
@@ -1312,7 +1315,7 @@ function drawFrame() {
   }
   view.style.display = 'block';
   msg.style.display = 'none';
-  resLabel.textContent = w + ' px wide';
+  setResText(w + ' px wide');
 }
 
 // ---- GPU path: per-pixel styles run in a WebGL shader instead of reading the picture back into JavaScript ----
@@ -1505,7 +1508,9 @@ function showMessage(text) {
 }
 
 // Opens the camera straight away when the app loads
+let camToken = 0; // only the latest startCamera call may keep its stream
 async function startCamera() {
+  const token = ++camToken;
   if (stream) stream.getTracks().forEach(t => { t.onended = null; t.stop(); });
   stream = null;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -1513,10 +1518,12 @@ async function startCamera() {
     return;
   }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
+    const st = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 1280 } },
       audio: false
     });
+    if (token !== camToken) { st.getTracks().forEach(t => t.stop()); return; } // a newer call took over while this one waited
+    stream = st;
     cam.srcObject = stream;
     // If the system ends the camera while the page is open, start it again
     stream.getVideoTracks().forEach(t => { t.onended = () => startCamera(); });
@@ -1727,6 +1734,7 @@ document.getElementById('gam').addEventListener('input', e => {
 });
 
 flipBtn.addEventListener('click', () => {
+  if (frozen) toggleFreeze(); // a frozen photo was taken from the other camera, so go back to live
   facing = facing === 'environment' ? 'user' : 'environment';
   persist();
   startCamera();
@@ -1829,13 +1837,9 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-// Saves the file as a download (Downloads folder on Android)
 let lastVideo = null;
 let reviewVid = null, reviewUrl = null;
 const reviewBar = document.getElementById('reviewBar');
-function saveFile(blob, name) {
-  download(blob, name);
-}
 // After a recording stops, the clip plays in the feed until it is saved or discarded
 function enterReview(blob, name) {
   exitReview();
@@ -1855,7 +1859,7 @@ function exitReview() {
 }
 document.getElementById('reviewSave').addEventListener('click', () => {
   if (!lastVideo) return;
-  saveFile(lastVideo.blob, lastVideo.name);
+  download(lastVideo.blob, lastVideo.name);
   exitReview();
 });
 document.getElementById('reviewDiscard').addEventListener('click', exitReview);
@@ -1869,7 +1873,7 @@ async function takePhoto() {
   if (!view.width) return;
   flashNow();
   const blob = await exportBlob();
-  await saveFile(blob, `pixel-${pal}-${Date.now()}.png`);
+  download(blob, `pixel-${pal}-${Date.now()}.png`);
 }
 shootBtn.addEventListener('click', toggleFreeze);
 document.getElementById('backLive').addEventListener('click', toggleFreeze);
@@ -1891,7 +1895,15 @@ function noVideo() {
 let recCv = null, recCtx = null, recRaf = 0;
 // Copies the on-screen picture into the larger recording canvas once per display frame
 function copyFrames() {
-  recCtx.drawImage(view, 0, 0, recCv.width, recCv.height);
+  const W = recCv.width, H = recCv.height;
+  if (view.width * H === view.height * W) recCtx.drawImage(view, 0, 0, W, H);
+  else {
+    // The picture changed shape while recording (a new ratio or style): keep its proportions, centred on black
+    const k = Math.min(W / view.width, H / view.height), w = view.width * k, h = view.height * k;
+    recCtx.fillStyle = '#000';
+    recCtx.fillRect(0, 0, W, H);
+    recCtx.drawImage(view, (W - w) / 2, (H - h) / 2, w, h);
+  }
   recRaf = requestAnimationFrame(copyFrames);
 }
 function stopCopy() { cancelAnimationFrame(recRaf); recCv = null; recCtx = null; }
@@ -1926,6 +1938,7 @@ recBtn.addEventListener('click', () => {
     const blob = new Blob(chunks, { type: opts });
     recorder = null;
     recBtn.classList.remove('rec-on');
+    if (!blob.size) { toast('Nothing was recorded'); return; }
     enterReview(blob, `pixel-video-${Date.now()}.${ext}`);
   };
   recorder.start();
