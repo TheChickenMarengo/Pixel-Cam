@@ -1690,6 +1690,7 @@ document.querySelectorAll('#filters button').forEach(b => {
     filterName = b.dataset.filter;
     if (filterName === 'random') FILTERS.random = randomGradientLut(); // a new gradient each time it is tapped
     filterLut = FILTERS[filterName];
+    dirty = true;
     document.querySelectorAll('#filters button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     updateFilterBtn();
     closeDrawer();
@@ -1700,6 +1701,7 @@ document.querySelectorAll('#filters button').forEach(b => {
 document.getElementById('reroll').addEventListener('click', () => {
   FILTERS.random = randomGradientLut();
   filterLut = FILTERS.random;
+  dirty = true; // a frozen picture is only redrawn when something marks it dirty
 });
 
 function setDitherLabel() { const t = 'Dither ' + (dither ? 'on' : 'off'); ditherBtn.title = t; ditherBtn.setAttribute('aria-label', t); ditherBtn.setAttribute('aria-pressed', String(dither)); }
