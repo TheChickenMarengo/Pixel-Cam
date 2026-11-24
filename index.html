@@ -135,6 +135,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div class="row spread"><span class="dim">Resolution</span><span class="dim" id="resLabel">160 px wide</span></div>
   <input type="range" id="res" min="32" max="768" step="8" value="160">
   <div class="row" id="sizes"><button data-size="64">64 px</button><button data-size="128">128 px</button><button data-size="256">256 px</button></div>
+  <div class="row spread"><span class="dim">Compression</span><span class="dim" id="jpgLabel">0%</span></div>
+  <input type="range" id="jpg" min="0" max="1" step="0.05" value="0">
   <div class="row" id="aspect"><button data-aspect="original" aria-pressed="false">Original</button><button data-aspect="4x3" aria-pressed="false">4:3</button><button data-aspect="3x2" aria-pressed="false">3:2</button><button data-aspect="16x9" aria-pressed="false">16:9</button><button data-aspect="3x4" aria-pressed="false">3:4</button><button data-aspect="2x3" aria-pressed="false">2:3</button><button data-aspect="9x16" aria-pressed="false">9:16</button></div>
   </div>
   <div class="adjsec" id="adjScreen" hidden></div>
@@ -172,6 +174,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="group"><div class="gname">Handhelds</div><div class="grid"><button data-pal="gameboy" aria-pressed="false">Game Boy</button><button data-pal="gbc" aria-pressed="false">GB Colour</button><button data-pal="pocket" aria-pressed="false">GB Pocket</button><button data-pal="vb" aria-pressed="false">Virtual Boy</button><button data-pal="nokia" aria-pressed="false">Nokia 3310</button><button data-pal="lynx" aria-pressed="false">Atari Lynx</button></div></div>
     <div class="group"><div class="gname">Consoles</div><div class="grid"><button data-pal="nes" aria-pressed="false">NES</button><button data-pal="sms" aria-pressed="false">Master System</button><button data-pal="md" aria-pressed="false">Mega Drive</button><button data-pal="atari" aria-pressed="false">Atari 2600</button><button data-pal="pico8" aria-pressed="false">Pico-8</button></div></div>
     <div class="group"><div class="gname">Computers</div><div class="grid"><button data-pal="dos" aria-pressed="false">DOS</button><button data-pal="cga" aria-pressed="false">CGA</button><button data-pal="c64" aria-pressed="false">C64</button><button data-pal="c64mc" aria-pressed="false">C64 Multi</button><button data-pal="zx" aria-pressed="false">ZX Spectrum</button><button data-pal="zxr" aria-pressed="false">ZX Spectrum-R</button><button data-pal="cpc" aria-pressed="false">Amstrad CPC</button><button data-pal="amiga" aria-pressed="false">Amiga 500</button><button data-pal="st" aria-pressed="false">Atari ST</button><button data-pal="apple" aria-pressed="false">Apple II</button><button data-pal="ham" aria-pressed="false">Amiga HAM</button><button data-pal="tandy" aria-pressed="false">Tandy</button><button data-pal="bbc" aria-pressed="false">BBC Micro</button><button data-pal="msx" aria-pressed="false">MSX / Coleco</button><button data-pal="web" aria-pressed="false">Web-safe</button></div></div>
+    <div class="group"><div class="gname">Webcams</div><div class="grid"><button data-pal="qcam" aria-pressed="false">QuickCam 94</button><button data-pal="msn" aria-pressed="false">MSN 160</button><button data-pal="cif" aria-pressed="false">CIF 352</button><button data-pal="qcif" aria-pressed="false">QCIF 176</button><button data-pal="mavica" aria-pressed="false">Mavica</button></div></div>
     <div class="group"><div class="gname">Screens and tape</div><div class="grid"><button data-pal="vhs" aria-pressed="false">VHS</button><button data-pal="green" aria-pressed="false">Green screen</button><button data-pal="amber" aria-pressed="false">Amber screen</button></div></div>
     <div class="group"><div class="gname">Text</div><div class="grid"><button data-pal="ascii" aria-pressed="false">ASCII</button><button data-pal="asciic" aria-pressed="false">Colour ASCII</button><button data-pal="zzt" aria-pressed="false">ZZT</button><button data-pal="zztw" aria-pressed="false">ZZT Wide</button><button data-pal="zzr" aria-pressed="false">ZZT-R</button><button data-pal="zztwr" aria-pressed="false">ZZT Wide-R</button><button data-pal="tele" aria-pressed="false">Teletext</button><button data-pal="pet" aria-pressed="false">PETSCII</button><button data-pal="pets" aria-pressed="false">PETSCII Strict</button></div></div>
   </div>
@@ -193,6 +196,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button data-filter="cross" aria-pressed="false">Cross process</button>
     <button data-filter="invert" aria-pressed="false">Invert</button>
     <button data-filter="posterise" aria-pressed="false">Posterise</button>
+    <button data-filter="cheapcmos" aria-pressed="false">Cheap CMOS</button>
     <button data-filter="random" aria-pressed="false">Random</button>
   </div>
   <button id="closeStyles">Close</button>
@@ -248,6 +252,8 @@ const PALETTES = {
   bbc: {mode:'nearest', colours:['#000000','#ff0000','#00ff00','#ffff00','#0000ff','#ff00ff','#00ffff','#ffffff']},
   // MSX and ColecoVision: the 15 colours of the TMS9918 video chip, at 256 px wide
   msx: {mode:'nearest', colours:['#000000','#3eb849','#74d07d','#5955e0','#8076f1','#b95e51','#65dbef','#db6559','#ff897d','#ccc35e','#ded087','#3aa241','#b766b5','#cccccc','#ffffff']},
+  // QuickCam (1994): a 4-bit greyscale sensor, 16 shades, 320 px wide
+  qcam: {mode:'ramp', colours:['#000000','#111111','#222222','#333333','#444444','#555555','#666666','#777777','#888888','#999999','#aaaaaa','#bbbbbb','#cccccc','#dddddd','#eeeeee','#ffffff']},
   // Monochrome phosphor screens
   green: {mode:'ramp', colours:['#001400','#0f5a0f','#22aa22','#66ff66']},
   amber: {mode:'ramp', colours:['#140800','#663300','#cc7a00','#ffb000']}
@@ -285,6 +291,8 @@ const FILTERS = {
   // Cross processing: hard red and green curves, and a blue that is lifted in the shadows and held back in the highlights
   cross: curveLut(t => sCurve(t, 1.3), t => sCurve(t, 0.6) * 0.96 + 0.04, t => 0.13 + 0.74 * t),
   invert: curveLut(t => 1 - t, t => 1 - t, t => 1 - t),
+  // A cheap webcam sensor: shadows crushed to black, highlights blown out early, a green-yellow cast, and a weak blue
+  cheapcmos: curveLut(t => sCurve(Math.min(1, Math.max(0, (t - 0.07) / 0.79)), 0.5), t => sCurve(Math.min(1, Math.max(0, (t - 0.04) / 0.74)), 0.5), t => 0.88 * sCurve(Math.min(1, Math.max(0, (t - 0.10) / 0.85)), 0.5)),
   posterise: curveLut(t => Math.round(t * 3) / 3, t => Math.round(t * 3) / 3, t => Math.round(t * 3) / 3),
   random: null // set by randomGradientLut() each time the button is tapped
 };
@@ -304,7 +312,7 @@ function curveLut(r, g, b) {
 }
 // An S-shaped contrast curve: 0 leaves the value alone, 1 is a full smoothstep, more is harder
 function sCurve(t, k) { return t + k * (t * t * (3 - 2 * t) - t); }
-const FILTER_RGB = new Set(['technicolor', 'cross', 'invert', 'posterise']);
+const FILTER_RGB = new Set(['technicolor', 'cross', 'invert', 'posterise', 'cheapcmos']);
 // Applies a filter in place. Gradient filters use each pixel's brightness; channel filters (rgb) use each channel's own curve
 function applyFilter(d, lut, rgb) {
   if (rgb) {
@@ -333,13 +341,13 @@ const recBtn = document.getElementById('rec');
 const saveBtn = document.getElementById('save');
 const shootBtn = document.getElementById('shoot');
 const flash = document.getElementById('flash');
-const conEl = document.getElementById('con'), briEl = document.getElementById('bri'), satEl = document.getElementById('sat'), gamEl = document.getElementById('gam');
+const conEl = document.getElementById('con'), briEl = document.getElementById('bri'), satEl = document.getElementById('sat'), gamEl = document.getElementById('gam'), jpgEl = document.getElementById('jpg');
 
 // Settings are remembered on this device when storage is available
 const SAVED = (() => { try { return JSON.parse(localStorage.getItem('pixelcam') || '{}'); } catch (e) { return {}; } })();
 let pal = SAVED.pal || 'gameboy', dither = SAVED.dither !== false, facing = SAVED.facing || 'environment';
 // Screen effects: a strength from 0 to 1 for each (drawn by the overlay near the end of the script)
-const FX_DEFS = [['scan', 'Scanlines'], ['mask', 'Phosphor mask'], ['grid', 'Pixel grid'], ['shape', 'Round pixels'], ['bleed', 'Bleed'], ['bloom', 'Glow'], ['split', 'RGB split'], ['vig', 'Vignette'], ['grain', 'Film grain']];
+const FX_DEFS = [['scan', 'Scanlines'], ['mask', 'Phosphor mask'], ['grid', 'Pixel grid'], ['shape', 'Round pixels'], ['bleed', 'Bleed'], ['chroma', 'Chroma smear'], ['bloom', 'Glow'], ['split', 'RGB split'], ['vig', 'Vignette'], ['grain', 'Film grain']];
 const fxParams = {};
 for (const [k] of FX_DEFS) fxParams[k] = Math.min(1, Math.max(0, +((SAVED.fx || {})[k]) || 0));
 let fxStale = true, fxBroken = false; // fxStale: the overlay needs redrawing even though the picture is still
@@ -367,6 +375,8 @@ if (SAVED.con) document.getElementById('con').value = SAVED.con;
 if (SAVED.bri) document.getElementById('bri').value = SAVED.bri;
 if (SAVED.sat) document.getElementById('sat').value = SAVED.sat;
 if (SAVED.gam) document.getElementById('gam').value = SAVED.gam;
+if (SAVED.jpg) jpgEl.value = Math.min(1, Math.max(0, +SAVED.jpg || 0));
+document.getElementById('jpgLabel').textContent = Math.round(jpgEl.value * 100) + '%';
 // Show the restored values on the labels too
 document.getElementById('conLabel').textContent = (+document.getElementById('con').value).toFixed(2);
 document.getElementById('briLabel').textContent = document.getElementById('bri').value;
@@ -377,7 +387,7 @@ function writeSettings() {
     pal, dither, facing, filter: filterName,
     res: resIsAsc ? pxRes : res.value, asc: resIsAsc ? res.value : ascCols,
     charset: asciiSet, aspect: aspectKey,
-    con: conEl.value, bri: briEl.value, sat: satEl.value, gam: gamEl.value, fx: fxParams, favs: [...favs]
+    con: conEl.value, bri: briEl.value, sat: satEl.value, gam: gamEl.value, jpg: jpgEl.value, fx: fxParams, favs: [...favs]
   })); } catch (e) {}
 }
 // Settings are written after a short pause, so dragging a slider doesn't write on every move
@@ -1456,13 +1466,92 @@ function blueNoise(d, w, h) {
   }
 }
 
+
+// ---- Old webcam looks: JPEG-style compression, a soft lens and purple fringing ----
+// The standard JPEG quantisation tables (luma and chroma) and the 8-point DCT basis
+const JPEG_QL = [16,11,10,16,24,40,51,61, 12,12,14,19,26,58,60,55, 14,13,16,24,40,57,69,56, 14,17,22,29,51,87,80,62, 18,22,37,56,68,109,103,77, 24,35,55,64,81,104,113,92, 49,64,78,87,103,121,120,101, 72,92,95,98,112,100,103,99];
+const JPEG_QC = [17,18,24,47,99,99,99,99, 18,21,26,66,99,99,99,99, 24,26,56,99,99,99,99,99, 47,66,99,99,99,99,99,99, 99,99,99,99,99,99,99,99, 99,99,99,99,99,99,99,99, 99,99,99,99,99,99,99,99, 99,99,99,99,99,99,99,99];
+const JPEG_COS = (() => { const c = new Float32Array(64); for (let k = 0; k < 8; k++) for (let x = 0; x < 8; x++) c[k*8+x] = (k ? 0.5 : Math.SQRT1_2 * 0.5) * Math.cos((2*x+1) * k * Math.PI / 16); return c; })();
+// What each webcam style adds: compression strength (0 to 1), purple fringe, lens softness
+const WEBCAM = {msn: {q: 0.9}, cif: {q: 0.45}, qcif: {q: 0.55}, mavica: {q: 0.4, fringe: 0.8, soft: 0.5}};
+// The webcam treatment for the current style and the Compression slider, or null when there is none
+function webcamParams() {
+  const s = WEBCAM[pal], q = Math.max(s ? s.q : 0, +jpgEl.value);
+  if (!s && q <= 0) return null;
+  return { q, fringe: (s && s.fringe) || 0, soft: (s && s.soft) || 0 };
+}
+// Quantises one plane in 8x8 blocks: forward DCT, divide by the table and round, then back again
+function jpegPlane(P, pw, ph, tab) {
+  const C = JPEG_COS, t = new Float32Array(64), u = new Float32Array(64);
+  for (let by = 0; by < ph; by += 8) for (let bx = 0; bx < pw; bx += 8) {
+    for (let y = 0; y < 8; y++) { const o = (by + y) * pw + bx; for (let k = 0; k < 8; k++) { let a = 0; for (let x = 0; x < 8; x++) a += P[o+x] * C[k*8+x]; t[y*8+k] = a; } }
+    for (let k = 0; k < 8; k++) for (let l = 0; l < 8; l++) { let a = 0; for (let y = 0; y < 8; y++) a += t[y*8+k] * C[l*8+y]; const q = tab[l*8+k]; u[l*8+k] = Math.round(a / q) * q; }
+    for (let k = 0; k < 8; k++) for (let y = 0; y < 8; y++) { let a = 0; for (let l = 0; l < 8; l++) a += u[l*8+k] * C[l*8+y]; t[y*8+k] = a; }
+    for (let y = 0; y < 8; y++) { const o = (by + y) * pw + bx; for (let x = 0; x < 8; x++) { let a = 0; for (let k = 0; k < 8; k++) a += t[y*8+k] * C[k*8+x]; P[o+x] = a; } }
+  }
+}
+// JPEG as a camera does it: brightness at full size, colour at half size, both cut into 8x8 blocks. q: 0 (none) to 1 (very heavy)
+function jpegBlocks(d, w, h, q) {
+  const quality = Math.max(8, Math.round(100 - q * 92));
+  const sc = quality < 50 ? 5000 / quality : 200 - 2 * quality;
+  const tl = new Float32Array(64), tc = new Float32Array(64);
+  for (let i = 0; i < 64; i++) { tl[i] = Math.min(255, Math.max(1, Math.floor((JPEG_QL[i] * sc + 50) / 100))); tc[i] = Math.min(255, Math.max(1, Math.floor((JPEG_QC[i] * sc + 50) / 100))); }
+  const pw = (w + 7) & ~7, ph = (h + 7) & ~7;
+  const cw = (((w + 1) >> 1) + 7) & ~7, ch = (((h + 1) >> 1) + 7) & ~7;
+  const Y = new Float32Array(pw * ph), Cb = new Float32Array(cw * ch), Cr = new Float32Array(cw * ch);
+  for (let y = 0; y < ph; y++) { const sy = Math.min(y, h - 1); for (let x = 0; x < pw; x++) { const i = (sy * w + Math.min(x, w - 1)) * 4; Y[y*pw+x] = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2] - 128; } }
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    let r = 0, g = 0, b = 0;
+    for (let k = 0; k < 4; k++) { const i = (Math.min(y*2 + (k >> 1), h - 1) * w + Math.min(x*2 + (k & 1), w - 1)) * 4; r += d[i]; g += d[i+1]; b += d[i+2]; }
+    r /= 4; g /= 4; b /= 4;
+    Cb[y*cw+x] = -0.168736*r - 0.331264*g + 0.5*b;
+    Cr[y*cw+x] = 0.5*r - 0.418688*g - 0.081312*b;
+  }
+  jpegPlane(Y, pw, ph, tl); jpegPlane(Cb, cw, ch, tc); jpegPlane(Cr, cw, ch, tc);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y*w + x) * 4, yy = Y[y*pw+x] + 128, c = (y >> 1) * cw + (x >> 1), cb = Cb[c], cr = Cr[c];
+    d[i] = yy + 1.402*cr; d[i+1] = yy - 0.344136*cb - 0.714136*cr; d[i+2] = yy + 1.772*cb;
+  }
+}
+// A soft lens: each pixel mixed with the average of its neighbours
+function softBlur(d, w, h, amt) {
+  const src = new Uint8ClampedArray(d);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y*w + x) * 4;
+    for (let k = 0; k < 3; k++) {
+      let a = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) a += src[(Math.min(h-1, Math.max(0, y+dy)) * w + Math.min(w-1, Math.max(0, x+dx))) * 4 + k];
+      d[i+k] = src[i+k] + (a / 9 - src[i+k]) * amt;
+    }
+  }
+}
+// Purple fringing: a magenta halo on hard edges beside bright areas
+function fringePass(d, w, h, amt) {
+  const L = new Float32Array(w * h);
+  for (let p = 0; p < w * h; p++) L[p] = 0.299*d[p*4] + 0.587*d[p*4+1] + 0.114*d[p*4+2];
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const p = y*w + x, a = L[p-1], b = L[p+1], c = L[p-w], e = L[p+w];
+    const edge = Math.abs(a - b) + Math.abs(c - e);
+    if (edge > 40 && Math.max(a, b, c, e) > 190) {
+      const f = Math.min(1, edge / 160) * amt, i = p * 4;
+      d[i] += 70 * f; d[i+1] -= 40 * f; d[i+2] += 90 * f;
+    }
+  }
+}
+// The whole webcam treatment, in the order the camera does it: lens, sensor fringe, then compression
+function webcam(d, w, h, q, fringe, soft) {
+  if (soft > 0) softBlur(d, w, h, soft);
+  if (fringe > 0) fringePass(d, w, h, fringe);
+  if (q > 0) jpegBlocks(d, w, h, q);
+}
+
 // Background processing for the per-pixel styles. The worker gets its own copies of the style functions and palettes
 let procWorker = null, procBusy = false, procFrozen = false;
 const procCv = document.createElement('canvas');
 function buildWorkerSource() {
   const palettes = {};
   for (const k in PALETTES) if (PALETTES[k] && PALETTES[k].rgb) palettes[k] = { mode: PALETTES[k].mode, rgb: PALETTES[k].rgb };
-  const fns = [quantise, nearest, nearestCached, diffuse, lumaBuf, mono1, atkinson, channelQuant, vhsRand, vhs, atariST, atariLynx, amigaHam, megaDrive, cpcMode1, c64Multi, appleHires, blueNoise, applyFilter];
+  const fns = [quantise, nearest, nearestCached, diffuse, lumaBuf, mono1, atkinson, channelQuant, vhsRand, vhs, atariST, atariLynx, amigaHam, megaDrive, cpcMode1, c64Multi, appleHires, blueNoise, applyFilter, jpegPlane, jpegBlocks, softBlur, fringePass, webcam];
   return `
 let dither = true, pal = 'gameboy', LUTS = {}, bufCache = null, vhsCopy = null;
 let stPal = null, stTick = 0, mdPal = null, mdTick = 0, cpcPal = null, cpcTick = 0, lynxPal = null, lynxTick = 0, hamPal = null, hamTick = 0;
@@ -1470,6 +1559,7 @@ const LYNX_LEVEL = k => Math.round(k * 255 / 15);
 const q4 = v => Math.min(15, Math.round(v * 15 / 255));
 const BAYER = ${JSON.stringify(BAYER)}, B8 = ${JSON.stringify(B8)}, BLUE = ${JSON.stringify(Array.from(BLUE))};
 const PALETTES = ${JSON.stringify(palettes)};
+const JPEG_QL = ${JSON.stringify(JPEG_QL)}, JPEG_QC = ${JSON.stringify(JPEG_QC)}, JPEG_COS = ${JSON.stringify(Array.from(JPEG_COS))};
 const ST_LEVEL = k => Math.round(k * 255 / 7);
 const q3 = v => Math.min(7, Math.round(v * 7 / 255));
 const CPC_LEVELS = [0, 128, 255];
@@ -1495,7 +1585,8 @@ self.onmessage = (e) => {
   else if (pal === 'bluen') blueNoise(d, w, h);
   else if (pal === 'c64mc') c64Multi(d, w, h);
   else if (pal === 'cpc') cpcMode1(d, w, h);
-  else if (pal !== 'original') quantise(d, w, h);
+  else if (PALETTES[pal]) quantise(d, w, h);
+  if (m.wc) webcam(d, w, h, m.wc.q, m.wc.fringe, m.wc.soft);
   if (m.lut) applyFilter(d, m.lut, m.lutRgb);
   self.postMessage({ buf: d.buffer, w, h, pal }, [d.buffer]);
 };`;
@@ -1521,7 +1612,7 @@ function startWorker() {
 startWorker();
 
 // Draws one processed frame of the live camera, the frozen photo or the review clip into the view
-const PX_CAP = {atari: 160, lynx: 160, apple: 280, md: 280, c64mc: 280, tandy: 160, bbc: 160, msx: 256, ham: 320}; // widest picture for the styles of fixed hardware
+const PX_CAP = {atari: 160, lynx: 160, apple: 280, md: 280, c64mc: 280, tandy: 160, bbc: 160, msx: 256, ham: 320, qcam: 320, msn: 160, cif: 352, qcif: 176, mavica: 640}; // widest picture for the styles of fixed hardware
 function drawFrame() {
   const live = cam.readyState >= 2 && cam.videoWidth;
   const src = reviewVid ? (reviewVid.readyState >= 2 ? reviewVid : null) : (frozen ? frozenFrame : live ? cam : null);
@@ -1559,7 +1650,7 @@ function drawFrame() {
     const img = pctx.getImageData(0, 0, w, h);
     adjust(img.data);
     procBusy = true; procFrozen = frozen;
-    procWorker.postMessage({ buf: img.data.buffer, w, h, pal, dither, lut: filterLut || null, lutRgb: filterRgb,
+    procWorker.postMessage({ buf: img.data.buffer, w, h, pal, dither, lut: filterLut || null, lutRgb: filterRgb, wc: webcamParams(),
       at: frozen ? frozenNow : undefined }, [img.data.buffer]);
     view.style.display = 'block'; msg.style.display = 'none';
     setResText(w + ' px wide');
@@ -1593,7 +1684,9 @@ function drawFrame() {
     else if (pal === 'bluen') blueNoise(img.data, w, h);
     else if (pal === 'c64mc') c64Multi(img.data, w, h);
     else if (pal === 'cpc') cpcMode1(img.data, w, h);
-    else if (pal !== 'original') quantise(img.data, w, h);
+    else if (PALETTES[pal]) quantise(img.data, w, h);
+    const wc = webcamParams();
+    if (wc) webcam(img.data, w, h, wc.q, wc.fringe, wc.soft);
     if (filterLut) applyFilter(img.data, filterLut, filterRgb);
     vctx.putImageData(img, 0, 0);
   }
@@ -1721,7 +1814,8 @@ function initGL() {
 }
 // Which GPU mode the current style uses: 0 Original, 1 ramp, 2 nearest colour, -1 CPU only
 function gpuMode() {
-  if (pal === 'original') return 0;
+  if (pal === 'original' && !webcamParams()) return 0;
+  if (webcamParams()) return -1; // the compression runs on the CPU, so the style does too
   const P = PALETTES[pal];
   if (!P || pal === 'dos' || pal === 'zx' || pal === 'zxr' || P.rgb.length > 64) return -1;
   return P.mode === 'ramp' ? 1 : 2;
@@ -1989,7 +2083,7 @@ const fxEls = [];
 })();
 
 // Double-tap a slider to put it back to its default. Dragging does not count as a tap.
-[res, conEl, briEl, satEl, gamEl, ...fxEls].forEach(el => {
+[res, conEl, briEl, satEl, gamEl, jpgEl, ...fxEls].forEach(el => {
   let startX = 0, startY = 0, lastTap = 0;
   el.addEventListener('pointerdown', e => { startX = e.clientX; startY = e.clientY; });
   el.addEventListener('pointerup', e => {
@@ -2079,6 +2173,7 @@ function showAdjTab(tab) {
   ['pixels', 'tone', 'screen', 'text'].forEach(t => { document.getElementById('adj' + t[0].toUpperCase() + t.slice(1)).hidden = t !== tab; });
 }
 document.querySelectorAll('#adjTabs button').forEach(b => b.addEventListener('click', () => showAdjTab(b.dataset.adj)));
+jpgEl.addEventListener('input', () => { document.getElementById('jpgLabel').textContent = Math.round(jpgEl.value * 100) + '%'; persist(); });
 // Puts contrast, brightness, gamma and saturation back to their defaults
 document.getElementById('adjReset').addEventListener('click', () => {
   [conEl, briEl, gamEl, satEl].forEach(el => { el.value = el.defaultValue; el.dispatchEvent(new Event('input')); });
@@ -2150,7 +2245,7 @@ varying vec2 v;
 uniform sampler2D u_img;
 uniform vec2 u_src;   // picture size in pixels
 uniform vec2 u_out;   // output size in pixels
-uniform float u_scan, u_vig, u_bloom, u_split, u_grid, u_mask, u_shape, u_bleed, u_grain, u_t;
+uniform float u_scan, u_vig, u_bloom, u_split, u_grid, u_mask, u_shape, u_bleed, u_chroma, u_grain, u_t;
 vec3 pix(vec2 uv) { return texture2D(u_img, (floor(uv * u_src) + 0.5) / u_src).rgb; }
 // The picture at a point, with the red and blue channels pulled apart by the RGB split
 vec3 col(vec2 uv) {
@@ -2168,6 +2263,16 @@ void main() {
     vec2 dx = vec2(1.0 / u_src.x, 0.0);
     vec3 smear = 0.4 * c + 0.25 * col(uv - dx) + 0.15 * col(uv - 2.0 * dx) + 0.1 * col(uv - 3.0 * dx) + 0.1 * col(uv + dx);
     c = mix(c, smear, u_bleed);
+  }
+  if (u_chroma > 0.0) {
+    // Chroma smear: colour is stored at a lower resolution than brightness, so it spreads past edges while the detail stays sharp
+    float span = 1.0 + 4.0 * u_chroma;
+    vec3 acc = vec3(0.0);
+    for (int i = 0; i < 7; i++) acc += col(uv + vec2((float(i) - 3.0) / 3.0 * span, 0.0) / u_src);
+    acc += col(uv + vec2(0.0, span * 0.5) / u_src) + col(uv - vec2(0.0, span * 0.5) / u_src);
+    acc /= 9.0;
+    float ly = dot(c, vec3(0.299, 0.587, 0.114)), la = dot(acc, vec3(0.299, 0.587, 0.114));
+    c = mix(c, vec3(ly) + (acc - vec3(la)), u_chroma);
   }
   vec2 f = fract(uv * u_src);
   if (u_shape > 0.0) {
@@ -2237,7 +2342,7 @@ function makeFx(canvas) {
   g.enableVertexAttribArray(a);
   g.vertexAttribPointer(a, 2, g.FLOAT, false, 0, 0);
   const loc = {};
-  for (const n of ['u_img', 'u_src', 'u_out', 'u_scan', 'u_vig', 'u_bloom', 'u_split', 'u_grid', 'u_mask', 'u_shape', 'u_bleed', 'u_grain', 'u_t']) loc[n] = g.getUniformLocation(prog, n);
+  for (const n of ['u_img', 'u_src', 'u_out', 'u_scan', 'u_vig', 'u_bloom', 'u_split', 'u_grid', 'u_mask', 'u_shape', 'u_bleed', 'u_chroma', 'u_grain', 'u_t']) loc[n] = g.getUniformLocation(prog, n);
   const tex = g.createTexture();
   g.bindTexture(g.TEXTURE_2D, tex);
   for (const [k, v] of [[g.TEXTURE_MIN_FILTER, g.LINEAR], [g.TEXTURE_MAG_FILTER, g.LINEAR], [g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE], [g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE]]) g.texParameteri(g.TEXTURE_2D, k, v);
@@ -2254,7 +2359,7 @@ function makeFx(canvas) {
       g.uniform2f(loc.u_out, W, H);
       g.uniform1f(loc.u_scan, P.scan); g.uniform1f(loc.u_vig, P.vig);
       g.uniform1f(loc.u_bloom, P.bloom); g.uniform1f(loc.u_split, P.split); g.uniform1f(loc.u_grid, P.grid);
-      g.uniform1f(loc.u_mask, P.mask); g.uniform1f(loc.u_shape, P.shape); g.uniform1f(loc.u_bleed, P.bleed); g.uniform1f(loc.u_grain, P.grain);
+      g.uniform1f(loc.u_mask, P.mask); g.uniform1f(loc.u_shape, P.shape); g.uniform1f(loc.u_bleed, P.bleed); g.uniform1f(loc.u_chroma, P.chroma); g.uniform1f(loc.u_grain, P.grain);
       g.uniform1f(loc.u_t, Math.floor(performance.now() / 42) % 997); // the grain changes about 24 times a second
       g.drawArrays(g.TRIANGLE_STRIP, 0, 4);
     }
